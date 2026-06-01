@@ -161,6 +161,79 @@ Manage task dependencies to create execution sequences and prevent circular rela
 - **Visual sequences**: Dependencies create visual execution sequences in board view
 - **Completion tracking**: See which dependencies are blocking task progress
 
+## AgentBoard: Multi-Agent Coordination
+
+AgentBoard adds a control layer for coordinating multiple AI coding agents on top
+of the markdown task files. Storage stays markdown-native: the agent registry
+lives in `backlog/agents/` and coordination state lives in task frontmatter.
+
+### Agent registry
+
+| Action | Example |
+|--------|---------|
+| List agents | `backlog agent list` |
+| Register / update an agent | `backlog agent register codex --role implementer --online` |
+| Mark online (heartbeat) | `backlog agent online codex` |
+| Mark offline | `backlog agent offline codex` |
+| Remove an agent | `backlog agent remove codex` |
+
+> Note: `backlog agent …` manages the runtime agent registry. The separate
+> `backlog agents --update-instructions` command manages agent *instruction files*
+> (CLAUDE.md, AGENTS.md, …) and is unchanged.
+
+### Task claiming & locking
+
+A claim is a lease that prevents two agents from working the same card. The
+default lease is 30 minutes; claims past their lease are stale and can be
+reclaimed by anyone.
+
+| Action | Example |
+|--------|---------|
+| Claim a task | `backlog task claim BACK-1 --agent codex` |
+| Claim with a custom lease | `backlog task claim BACK-1 --agent codex --lease 60` |
+| Force-claim past an active claim | `backlog task claim BACK-1 --agent claude --force` |
+| Release your claim | `backlog task release BACK-1 --agent codex` |
+| Force-release someone else's claim | `backlog task release BACK-1 --force` |
+
+Claiming an unregistered agent auto-registers it (and marks it online).
+A second agent claiming an actively-claimed card fails with a non-zero exit code.
+
+### Handoff
+
+| Action | Example |
+|--------|---------|
+| Hand a task to another agent | `backlog task handoff BACK-1 --to claude --from codex --note "tests left to write"` |
+
+Handoff records `handoff_to`, reassigns the task, releases the current claim,
+resets the agent status to `waiting`, and stores the note as `last_agent_note`.
+
+### Human review gate
+
+Mark a task so it cannot be moved to Done (the terminal status) by an agent until
+a human approves it.
+
+| Action | Example |
+|--------|---------|
+| Require review on create | `backlog task create "Risky change" --require-review` |
+| Require review on an existing task | `backlog task edit BACK-1 --require-review` |
+| Remove the requirement | `backlog task edit BACK-1 --clear-review` |
+| Approve (moves task to Done) | `backlog task review BACK-1 --approve --note "LGTM"` |
+| Reject (keeps the gate, records reason) | `backlog task review BACK-1 --reject --note "missing tests"` |
+
+While `requires_human_review` is set, `backlog task edit BACK-1 -s Done` is
+blocked with a non-zero exit code until the task is approved.
+
+### Assigning an agent
+
+| Action | Example |
+|--------|---------|
+| Assign on create | `backlog task create "Build API" --assign-agent codex` |
+| Assign on edit | `backlog task edit BACK-1 --assign-agent claude` |
+| Clear the assigned agent | `backlog task edit BACK-1 --clear-assigned-agent` |
+
+Coordination state is shown in `backlog task <id> --plain` (assigned agent,
+claim + lease, agent status, handoff target, review requirement, artifacts, last note).
+
 ## Board Operations
 
 | Action      | Example                                              |

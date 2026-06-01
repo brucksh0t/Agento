@@ -45,6 +45,50 @@ If you can simplify the code, do it.
 - Don't add new exported helpers just to compute a path; derive from existing paths or add one shared helper only when reused.
 
 
+## AgentBoard multi-agent coordination
+
+This project is **AgentBoard** — Backlog.md extended into a local-first control
+board for coordinating multiple AI coding agents (Claude, Codex, Grok, …). The
+markdown task files remain the single source of truth; the Kanban browser is the
+human overwatch surface. On top of that, AgentBoard adds an agent control layer.
+
+**Golden rules for agents working a board:**
+
+1. **Register / come online** before you start:
+   `backlog agent register <you> --role implementer --online`
+2. **Claim a card before working it.** Never work a task you have not claimed —
+   the claim is a lease that stops two agents touching the same card.
+   `backlog task claim BACK-1 --agent <you>`
+   - If the claim is rejected, the card is owned by another live agent. Pick a
+     different card or coordinate; only use `--force` if you know the holder is dead.
+   - Claims expire (default 30 min). Renew by claiming again. Stale claims are
+     reclaimable by anyone.
+3. **Leave a trail.** When pausing, blocking, or finishing, update the card:
+   record artifacts and a `last_agent_note` so the next agent has context.
+4. **Hand off explicitly** instead of dropping a card:
+   `backlog task handoff BACK-1 --to <other> --from <you> --note "what's left"`
+5. **Respect the review gate.** A card with `requires_human_review: true` cannot
+   be moved to Done by an agent. Move it to the review column and wait. A human
+   (or reviewer agent) runs `backlog task review BACK-1 --approve|--reject`.
+6. **Release** a card you are abandoning so others can pick it up:
+   `backlog task release BACK-1 --agent <you>`.
+
+**Task coordination frontmatter** (managed by the commands above — agents
+normally should not hand-edit these):
+
+| field | meaning |
+| --- | --- |
+| `assigned_agent` | intended owner of the task |
+| `claimed_by` | agent currently holding the lease |
+| `claim_expires_at` | ISO time the lease expires |
+| `agent_status` | `waiting` / `working` / `blocked` / `review` / `done` |
+| `requires_human_review` | gate: blocks Done until a human approves |
+| `handoff_to` | agent the task should go to next |
+| `artifact_paths` | result artifacts produced for the task |
+| `last_agent_note` | latest note / handoff context |
+
+See `CLI-INSTRUCTIONS.md` (AgentBoard section) for the full command reference.
+
 ## Commands
 
 ### Development
