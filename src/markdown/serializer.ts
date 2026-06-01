@@ -1,5 +1,5 @@
 import matter from "gray-matter";
-import type { AcceptanceCriterion, Decision, Document, Task } from "../types/index.ts";
+import type { AcceptanceCriterion, Agent, Decision, Document, Task } from "../types/index.ts";
 import { normalizeAssignee } from "../utils/assignee.ts";
 import {
 	AcceptanceCriteriaManager,
@@ -51,6 +51,15 @@ export function serializeTask(task: Task): string {
 		...(task.priority && { priority: task.priority }),
 		...(task.ordinal !== undefined && { ordinal: task.ordinal }),
 		...(task.onStatusChange && { onStatusChange: task.onStatusChange }),
+		// AgentBoard multi-agent coordination fields (only written when set, to preserve Backlog.md compatibility)
+		...(task.assignedAgent && { assigned_agent: task.assignedAgent }),
+		...(task.claimedBy && { claimed_by: task.claimedBy }),
+		...(task.claimExpiresAt && { claim_expires_at: task.claimExpiresAt }),
+		...(task.agentStatus && { agent_status: task.agentStatus }),
+		...(task.requiresHumanReview !== undefined && { requires_human_review: task.requiresHumanReview }),
+		...(task.handoffTo && { handoff_to: task.handoffTo }),
+		...(task.artifactPaths && task.artifactPaths.length > 0 && { artifact_paths: task.artifactPaths }),
+		...(task.lastAgentNote && { last_agent_note: task.lastAgentNote }),
 	};
 
 	let contentBody = task.rawContent ?? "";
@@ -120,6 +129,20 @@ export function serializeDecision(decision: Decision): string {
 	}
 
 	return matter.stringify(content, frontmatter);
+}
+
+export function serializeAgent(agent: Agent): string {
+	const frontmatter = {
+		id: agent.id,
+		name: agent.name,
+		...(agent.role && { role: agent.role }),
+		status: agent.status,
+		registered_date: agent.registeredDate,
+		...(agent.lastSeen && { last_seen: agent.lastSeen }),
+	};
+
+	const body = agent.rawContent?.trim() ? agent.rawContent.trim() : `## Notes\n\n${agent.name} agent.`;
+	return matter.stringify(body, frontmatter);
 }
 
 export function serializeDocument(document: Document): string {

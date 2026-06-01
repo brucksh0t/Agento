@@ -59,6 +59,62 @@ export interface Task {
 	source?: "local" | "remote" | "completed" | "local-branch";
 	/** Optional per-task callback command to run on status change (overrides global config) */
 	onStatusChange?: string;
+	// --- AgentBoard multi-agent coordination fields ---
+	/** Agent the task is assigned to (intended owner), e.g. "codex". */
+	assignedAgent?: string;
+	/** Agent currently holding an active claim/lock on the task. */
+	claimedBy?: string;
+	/** ISO timestamp when the current claim lease expires. Stale claims past this are reclaimable. */
+	claimExpiresAt?: string;
+	/** Workflow state of the agent working the task (waiting, working, blocked, review, done). */
+	agentStatus?: AgentTaskStatus;
+	/** When true, the task cannot move to a terminal status until a human approves it. */
+	requiresHumanReview?: boolean;
+	/** Agent the task should be handed off to next. */
+	handoffTo?: string;
+	/** Paths to result artifacts produced while working the task. */
+	artifactPaths?: string[];
+	/** Free-form note left by the last agent that touched the task (handoff context, blockers, etc.). */
+	lastAgentNote?: string;
+}
+
+/**
+ * Workflow state of the agent currently responsible for a task.
+ * Distinct from the board column (`status`) which is human-facing.
+ */
+export const AGENT_TASK_STATUSES = ["waiting", "working", "blocked", "review", "done"] as const;
+export type AgentTaskStatus = (typeof AGENT_TASK_STATUSES)[number];
+
+/** Runtime presence of a registered agent. */
+export const AGENT_RUNTIME_STATUSES = ["online", "offline"] as const;
+export type AgentRuntimeStatus = (typeof AGENT_RUNTIME_STATUSES)[number];
+
+/**
+ * A registered agent in the AgentBoard registry. Stored as a markdown file
+ * under `backlog/agents/` to keep storage markdown-native and local-first.
+ */
+export interface Agent {
+	/** Stable identifier used in task fields (e.g. "codex", "claude", "grok"). */
+	id: string;
+	/** Human-friendly display name. */
+	name: string;
+	/** Optional role/specialty, e.g. "implementer", "reviewer", "planner". */
+	role?: string;
+	/** Runtime presence. */
+	status: AgentRuntimeStatus;
+	/** ISO date the agent was first registered. */
+	registeredDate: string;
+	/** ISO timestamp the agent was last seen online (heartbeat). */
+	lastSeen?: string;
+	/** Raw markdown body (notes about the agent). */
+	readonly rawContent?: string;
+}
+
+export interface AgentRegisterInput {
+	id: string;
+	name?: string;
+	role?: string;
+	status?: AgentRuntimeStatus;
 }
 
 export interface MilestoneBucket {
@@ -107,6 +163,9 @@ export interface TaskCreateInput {
 	definitionOfDoneAdd?: string[];
 	disableDefinitionOfDoneDefaults?: boolean;
 	rawContent?: string;
+	// AgentBoard coordination fields
+	assignedAgent?: string;
+	requiresHumanReview?: boolean;
 }
 
 export interface TaskUpdateInput {
@@ -149,6 +208,9 @@ export interface TaskUpdateInput {
 	checkDefinitionOfDone?: number[];
 	uncheckDefinitionOfDone?: number[];
 	rawContent?: string;
+	// AgentBoard coordination fields
+	assignedAgent?: string | null;
+	requiresHumanReview?: boolean;
 }
 
 export interface TaskListFilter {

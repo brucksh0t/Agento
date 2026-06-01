@@ -18,6 +18,7 @@ import { computeSequences } from "./core/sequences.ts";
 import { formatTaskPlainText } from "./formatters/task-plain-text.ts";
 import {
 	type AgentInstructionFile,
+	AgentManager,
 	addAgentInstructions,
 	Core,
 	type EnsureMcpGuidelinesResult,
@@ -1468,6 +1469,8 @@ taskCmd
 	.option("--final-summary <text>", "add final summary")
 	.option("--ordinal <number>", "set task ordinal for custom ordering")
 	.option("-m, --milestone <milestone>", "assign task to milestone by ID or title")
+	.option("--assign-agent <agentId>", "assign the task to an agent (AgentBoard)")
+	.option("--require-review", "require human review before the task can be marked Done")
 	.option("--draft")
 	.option("-p, --parent <taskId>", "specify parent task ID")
 	.option(
@@ -1577,6 +1580,8 @@ taskCmd
 				acceptanceCriteria: criteria.map((text) => ({ text, checked: false })),
 				definitionOfDoneAdd: toStringArray(options.dod),
 				disableDefinitionOfDoneDefaults: options.dodDefaults === false,
+				assignedAgent: options.assignAgent ? String(options.assignAgent) : undefined,
+				requiresHumanReview: options.requireReview ? true : undefined,
 			});
 
 			if (usePlainOutput) {
@@ -2122,6 +2127,10 @@ taskCmd
 	.option("--ordinal <number>", "set task ordinal for custom ordering")
 	.option("-m, --milestone <milestone>", "assign task to milestone by ID or title")
 	.option("--clear-milestone", "clear task milestone assignment")
+	.option("--assign-agent <agentId>", "assign the task to an agent (AgentBoard)")
+	.option("--clear-assigned-agent", "clear the assigned agent")
+	.option("--require-review", "require human review before the task can be marked Done")
+	.option("--clear-review", "remove the human-review requirement")
 	.option("--plain", "use plain text output after editing")
 	.option("--add-label <label>")
 	.option("--remove-label <label>")
@@ -2459,6 +2468,20 @@ taskCmd
 		let updatedTask: Task;
 		try {
 			const updateInput = buildTaskUpdateInput(editArgs);
+			// AgentBoard coordination fields (applied directly to the update input)
+			if (options.clearAssignedAgent) {
+				updateInput.assignedAgent = null;
+			} else if (typeof options.assignAgent === "string") {
+				updateInput.assignedAgent = String(options.assignAgent);
+			}
+			if (options.requireReview && options.clearReview) {
+				throw new Error("Cannot use --require-review and --clear-review together.");
+			}
+			if (options.requireReview) {
+				updateInput.requiresHumanReview = true;
+			} else if (options.clearReview) {
+				updateInput.requiresHumanReview = false;
+			}
 			updatedTask = await core.editTask(canonicalId, updateInput);
 		} catch (error) {
 			console.error(error instanceof Error ? error.message : String(error));
@@ -2504,6 +2527,112 @@ taskCmd
 
 		// Use enhanced task viewer with detail focus
 		await viewTaskEnhanced(task, { startWithDetailFocus: true, core, tasks: allTasks });
+	});
+
+// --- AgentBoard task coordination commands ---
+
+function printAgentTaskSummary(task: Task): void {
+	console.log(`Task ${task.id} — ${task.title}`);
+	if (task.assignedAgent) console.log(`  Assigned agent: ${task.assignedAgent}`);
+	if (task.claimedBy) {
+		const lease = task.claimExpiresAt ? ` (lease until ${task.claimExpiresAt})` : "";
+		console.log(`  Claimed by: ${task.claimedBy}${lease}`);
+	}
+	if (task.agentStatus) console.log(`  Agent status: ${task.agentStatus}`);
+	if (task.handoffTo) console.log(`  Handoff to: ${task.handoffTo}`);
+	if (task.requiresHumanReview) console.log("  Requires human review: yes");
+	if (task.lastAgentNote) console.log(`  Last note: ${task.lastAgentNote}`);
+}
+
+taskCmd
+	.command("claim <taskId>")
+	.description("claim a task for an agent (prevents two agents working the same card)")
+	.requiredOption("--agent <agentId>", "agent claiming the task")
+	.option("--lease <minutes>", "claim lease duration in minutes")
+	.option("--force", "override an active claim held by another agent")
+	.action(async (taskId: string, options: { agent: string; lease?: string; force?: boolean }) => {
+		const cwd = await requireProjectRoot();
+		const core = new Core(cwd);
+		const agents = new AgentManager(core);
+		try {
+			const leaseMinutes = options.lease !== undefined ? Number(options.lease) : undefined;
+			if (leaseMinutes !== undefined && !Number.isFinite(leaseMinutes)) {
+				console.error(`Invalid lease: ${options.lease}. Must be a number of minutes.`);
+				process.exitCode = 1;
+				return;
+			}
+			const task = await agents.claimTask(taskId, options.agent, { leaseMinutes, force: options.force });
+			console.log(`Claimed ${task.id} for ${task.claimedBy}.`);
+			printAgentTaskSummary(task);
+		} catch (err) {
+			console.error(err instanceof Error ? err.message : String(err));
+			process.exitCode = 1;
+		}
+	});
+
+taskCmd
+	.command("release <taskId>")
+	.description("release an agent's claim on a task")
+	.option("--agent <agentId>", "agent releasing the task (enforces ownership)")
+	.option("--force", "release even if claimed by another agent")
+	.action(async (taskId: string, options: { agent?: string; force?: boolean }) => {
+		const cwd = await requireProjectRoot();
+		const core = new Core(cwd);
+		const agents = new AgentManager(core);
+		try {
+			const task = await agents.releaseTask(taskId, { agentId: options.agent, force: options.force });
+			console.log(`Released claim on ${task.id}.`);
+			printAgentTaskSummary(task);
+		} catch (err) {
+			console.error(err instanceof Error ? err.message : String(err));
+			process.exitCode = 1;
+		}
+	});
+
+taskCmd
+	.command("handoff <taskId>")
+	.description("hand a task off to another agent")
+	.requiredOption("--to <agentId>", "agent to hand the task off to")
+	.option("--from <agentId>", "agent handing the task off (used to attribute the note)")
+	.option("--note <text>", "handoff note / context for the next agent")
+	.action(async (taskId: string, options: { to: string; from?: string; note?: string }) => {
+		const cwd = await requireProjectRoot();
+		const core = new Core(cwd);
+		const agents = new AgentManager(core);
+		try {
+			const task = await agents.handoffTask(taskId, options.to, { note: options.note, fromAgentId: options.from });
+			console.log(`Handed off ${task.id} to ${task.handoffTo}.`);
+			printAgentTaskSummary(task);
+		} catch (err) {
+			console.error(err instanceof Error ? err.message : String(err));
+			process.exitCode = 1;
+		}
+	});
+
+taskCmd
+	.command("review <taskId>")
+	.description("record a human review decision on a task")
+	.option("--approve", "approve the task and move it to the terminal status")
+	.option("--reject", "reject the task and keep the review gate in place")
+	.option("--note <text>", "review note / reason")
+	.action(async (taskId: string, options: { approve?: boolean; reject?: boolean; note?: string }) => {
+		if (options.approve === options.reject) {
+			console.error("Specify exactly one of --approve or --reject.");
+			process.exitCode = 1;
+			return;
+		}
+		const cwd = await requireProjectRoot();
+		const core = new Core(cwd);
+		const agents = new AgentManager(core);
+		try {
+			const decision = options.approve ? "approve" : "reject";
+			const task = await agents.reviewTask(taskId, decision, { note: options.note });
+			console.log(`Review ${decision === "approve" ? "approved" : "rejected"} for ${task.id}.`);
+			printAgentTaskSummary(task);
+		} catch (err) {
+			console.error(err instanceof Error ? err.message : String(err));
+			process.exitCode = 1;
+		}
 	});
 
 taskCmd
@@ -3186,6 +3315,90 @@ decisionCmd
 		};
 		await core.createDecision(decision);
 		console.log(`Created decision ${id}`);
+	});
+
+// AgentBoard agent registry command group (distinct from `agents` instruction files)
+const agentCmd = program.command("agent").description("manage the AgentBoard agent registry");
+
+agentCmd
+	.command("list")
+	.description("list registered agents")
+	.option("--plain", "machine-readable output")
+	.action(async (options: { plain?: boolean }) => {
+		const cwd = await requireProjectRoot();
+		const core = new Core(cwd);
+		const agents = new AgentManager(core);
+		const list = await agents.listAgents();
+		if (list.length === 0) {
+			console.log("No agents registered. Register one with: backlog agent register <id>");
+			return;
+		}
+		if (options.plain || shouldAutoPlain) {
+			for (const agent of list) {
+				console.log([agent.id, agent.status, agent.role ?? "-", agent.lastSeen ?? "-"].join("\t"));
+			}
+			return;
+		}
+		console.log("Registered agents:");
+		for (const agent of list) {
+			const role = agent.role ? ` [${agent.role}]` : "";
+			const seen = agent.lastSeen ? `, last seen ${agent.lastSeen}` : "";
+			console.log(`  ${agent.status === "online" ? "●" : "○"} ${agent.id}${role} — ${agent.status}${seen}`);
+		}
+	});
+
+agentCmd
+	.command("register <agentId>")
+	.description("register or update an agent")
+	.option("--name <name>", "display name")
+	.option("--role <role>", "role/specialty (e.g. implementer, reviewer)")
+	.option("--online", "mark the agent online")
+	.option("--offline", "mark the agent offline")
+	.action(async (agentId: string, options: { name?: string; role?: string; online?: boolean; offline?: boolean }) => {
+		const cwd = await requireProjectRoot();
+		const core = new Core(cwd);
+		const agents = new AgentManager(core);
+		try {
+			const status = options.online ? "online" : options.offline ? "offline" : undefined;
+			const agent = await agents.registerAgent({ id: agentId, name: options.name, role: options.role, status });
+			console.log(`Registered agent ${agent.id} (${agent.status}).`);
+		} catch (err) {
+			console.error(err instanceof Error ? err.message : String(err));
+			process.exitCode = 1;
+		}
+	});
+
+agentCmd
+	.command("online <agentId>")
+	.description("mark an agent online (heartbeat)")
+	.action(async (agentId: string) => {
+		const cwd = await requireProjectRoot();
+		const core = new Core(cwd);
+		const agents = new AgentManager(core);
+		const agent = await agents.setAgentStatus(agentId, "online");
+		console.log(`Agent ${agent.id} is online.`);
+	});
+
+agentCmd
+	.command("offline <agentId>")
+	.description("mark an agent offline")
+	.action(async (agentId: string) => {
+		const cwd = await requireProjectRoot();
+		const core = new Core(cwd);
+		const agents = new AgentManager(core);
+		const agent = await agents.setAgentStatus(agentId, "offline");
+		console.log(`Agent ${agent.id} is offline.`);
+	});
+
+agentCmd
+	.command("remove <agentId>")
+	.description("remove an agent from the registry")
+	.action(async (agentId: string) => {
+		const cwd = await requireProjectRoot();
+		const core = new Core(cwd);
+		const agents = new AgentManager(core);
+		const removed = await agents.removeAgent(agentId);
+		console.log(removed ? `Removed agent ${agentId}.` : `Agent ${agentId} not found.`);
 	});
 
 // Agents command group

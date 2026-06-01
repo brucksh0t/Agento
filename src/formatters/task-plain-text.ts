@@ -136,6 +136,30 @@ export function formatTaskPlainText(task: Task, options: TaskPlainTextOptions = 
 		lines.push(`Modified files: ${task.modifiedFiles.join(", ")}`);
 	}
 
+	// AgentBoard coordination fields
+	if (task.assignedAgent) {
+		lines.push(`Assigned agent: ${task.assignedAgent}`);
+	}
+	if (task.claimedBy) {
+		const lease = task.claimExpiresAt ? ` (lease until ${task.claimExpiresAt})` : "";
+		lines.push(`Claimed by: ${task.claimedBy}${lease}`);
+	}
+	if (task.agentStatus) {
+		lines.push(`Agent status: ${task.agentStatus}`);
+	}
+	if (task.handoffTo) {
+		lines.push(`Handoff to: ${task.handoffTo}`);
+	}
+	if (task.requiresHumanReview) {
+		lines.push("Requires human review: yes");
+	}
+	if (task.artifactPaths?.length) {
+		lines.push(`Artifacts: ${task.artifactPaths.join(", ")}`);
+	}
+	if (task.lastAgentNote) {
+		lines.push(`Last agent note: ${task.lastAgentNote}`);
+	}
+
 	lines.push("");
 	lines.push("Description:");
 	lines.push("-".repeat(50));

@@ -1,5 +1,15 @@
 import matter from "gray-matter";
-import type { AcceptanceCriterion, Decision, Document, Milestone, ParsedMarkdown, Task } from "../types/index.ts";
+import {
+	type AcceptanceCriterion,
+	AGENT_TASK_STATUSES,
+	type Agent,
+	type AgentTaskStatus,
+	type Decision,
+	type Document,
+	type Milestone,
+	type ParsedMarkdown,
+	type Task,
+} from "../types/index.ts";
 import {
 	AcceptanceCriteriaManager,
 	DefinitionOfDoneManager,
@@ -152,6 +162,13 @@ export function parseTask(content: string): Task {
 	const validatedPriority =
 		priority && validPriorities.includes(priority) ? (priority as "high" | "medium" | "low") : undefined;
 
+	// Validate agent workflow status field (AgentBoard extension)
+	const agentStatus = frontmatter.agent_status ? String(frontmatter.agent_status).toLowerCase() : undefined;
+	const validatedAgentStatus =
+		agentStatus && (AGENT_TASK_STATUSES as readonly string[]).includes(agentStatus)
+			? (agentStatus as AgentTaskStatus)
+			: undefined;
+
 	// Parse structured acceptance criteria (checked/text/index) from all sections
 	const structuredCriteria: AcceptanceCriterion[] = AcceptanceCriteriaManager.parseAllCriteria(rawContent);
 	const structuredDefinitionOfDone: AcceptanceCriterion[] = DefinitionOfDoneManager.parseAllCriteria(rawContent);
@@ -192,6 +209,36 @@ export function parseTask(content: string): Task {
 		priority: validatedPriority,
 		ordinal: frontmatter.ordinal !== undefined ? Number(frontmatter.ordinal) : undefined,
 		onStatusChange: frontmatter.onStatusChange ? String(frontmatter.onStatusChange) : undefined,
+		// AgentBoard multi-agent coordination fields
+		assignedAgent: frontmatter.assigned_agent ? String(frontmatter.assigned_agent) : undefined,
+		claimedBy: frontmatter.claimed_by ? String(frontmatter.claimed_by) : undefined,
+		claimExpiresAt: frontmatter.claim_expires_at ? String(frontmatter.claim_expires_at) : undefined,
+		agentStatus: validatedAgentStatus,
+		requiresHumanReview:
+			frontmatter.requires_human_review === undefined ? undefined : parseBooleanFlag(frontmatter.requires_human_review),
+		handoffTo: frontmatter.handoff_to ? String(frontmatter.handoff_to) : undefined,
+		artifactPaths: Array.isArray(frontmatter.artifact_paths) ? frontmatter.artifact_paths.map(String) : undefined,
+		lastAgentNote: frontmatter.last_agent_note ? String(frontmatter.last_agent_note) : undefined,
+	};
+}
+
+function parseBooleanFlag(value: unknown): boolean {
+	if (typeof value === "boolean") return value;
+	const normalized = String(value).trim().toLowerCase();
+	return normalized === "true" || normalized === "yes" || normalized === "1";
+}
+
+export function parseAgent(content: string): Agent {
+	const { frontmatter, content: rawContent } = parseMarkdown(content);
+	const status = String(frontmatter.status || "offline").toLowerCase();
+	return {
+		id: String(frontmatter.id || ""),
+		name: String(frontmatter.name || frontmatter.id || ""),
+		role: frontmatter.role ? String(frontmatter.role) : undefined,
+		status: status === "online" ? "online" : "offline",
+		registeredDate: normalizeDate(frontmatter.registered_date),
+		lastSeen: frontmatter.last_seen ? String(frontmatter.last_seen) : undefined,
+		rawContent,
 	};
 }
 

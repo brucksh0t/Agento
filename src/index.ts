@@ -13,13 +13,13 @@ export {
 export { exportKanbanBoardToFile, generateKanbanBoardWithMetadata } from "./board.ts";
 // Constants
 export * from "./constants/index.ts";
+// Agent coordination layer (AgentBoard)
+export { AgentCoordinationError, AgentManager, normalizeAgentId } from "./core/agents.ts";
 // Core entry point
 export { Core } from "./core/backlog.ts";
 export { SearchService } from "./core/search-service.ts";
-
 // File system operations
 export { FileSystem } from "./file-system/operations.ts";
-
 // Git operations
 export {
 	GitOperations,
@@ -30,3 +30,4 @@ export {
 export * from "./markdown/parser.ts";
 export * from "./markdown/serializer.ts";
 export * from "./types/index.ts";
+export { HumanReviewRequiredError } from "./utils/review-gate.ts";

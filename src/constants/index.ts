@@ -26,7 +26,15 @@ export const DEFAULT_DIRECTORIES = {
 	DECISIONS: "decisions",
 	/** Milestones directory */
 	MILESTONES: "milestones",
+	/** AgentBoard agent registry directory */
+	AGENTS: "agents",
 } as const;
+
+/**
+ * Default lease duration (minutes) for a task claim before it is considered stale
+ * and can be reclaimed by another agent. Keeps two agents from working the same card.
+ */
+export const DEFAULT_CLAIM_LEASE_MINUTES = 30;
 
 /**
  * Default configuration file names

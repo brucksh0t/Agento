@@ -36,6 +36,7 @@ import {
 	resolveClosestMilestoneFilterValue,
 } from "../utils/milestone-filter.ts";
 import { buildIdRegex, extractAnyPrefix, getPrefixForType, normalizeId } from "../utils/prefix-config.ts";
+import { assertHumanReviewGate } from "../utils/review-gate.ts";
 import {
 	getCanonicalStatus as resolveCanonicalStatus,
 	getValidStatuses as resolveValidStatuses,
@@ -1052,6 +1053,8 @@ export class Core {
 				...(typeof input.finalSummary === "string" && { finalSummary: input.finalSummary }),
 				...(acceptanceCriteriaItems.length > 0 && { acceptanceCriteriaItems }),
 				...(definitionOfDoneItems && definitionOfDoneItems.length > 0 && { definitionOfDoneItems }),
+				...(input.assignedAgent?.trim() && { assignedAgent: input.assignedAgent.trim() }),
+				...(input.requiresHumanReview !== undefined && { requiresHumanReview: input.requiresHumanReview }),
 			};
 
 			const filePath = await this.writePreparedTask(task, isDraft);
@@ -1082,6 +1085,19 @@ export class Core {
 		const oldStatus = originalTask?.status ?? "";
 		const newStatus = task.status ?? "";
 		const statusChanged = oldStatus !== newStatus;
+
+		// AgentBoard safeguard: block moving a review-gated task to a terminal status
+		// without human approval. Inactive unless requiresHumanReview is set on the task.
+		if (statusChanged) {
+			const config = await this.fs.loadConfig();
+			assertHumanReviewGate({
+				taskId: task.id,
+				oldStatus,
+				newStatus,
+				requiresHumanReview: task.requiresHumanReview,
+				statuses: config?.statuses ?? [...DEFAULT_STATUSES],
+			});
+		}
 
 		// Always set updatedDate when updating a task
 		task.updatedDate = new Date().toISOString().slice(0, 16).replace("T", " ");
@@ -1189,6 +1205,20 @@ export class Core {
 				task.assignee = sanitizedAssignee;
 				mutated = true;
 			}
+		}
+
+		// AgentBoard coordination fields
+		if (input.assignedAgent !== undefined) {
+			const next = input.assignedAgent === null ? undefined : input.assignedAgent.trim() || undefined;
+			if (task.assignedAgent !== next) {
+				task.assignedAgent = next;
+				mutated = true;
+			}
+		}
+
+		if (input.requiresHumanReview !== undefined && task.requiresHumanReview !== input.requiresHumanReview) {
+			task.requiresHumanReview = input.requiresHumanReview;
+			mutated = true;
 		}
 
 		const resolveLabelChanges = (): void => {

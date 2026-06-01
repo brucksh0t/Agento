@@ -109,6 +109,10 @@ export class FileSystem {
 		return join(this.resolvedBacklogDir, DEFAULT_DIRECTORIES.MILESTONES);
 	}
 
+	get agentsDir(): string {
+		return join(this.resolvedBacklogDir, DEFAULT_DIRECTORIES.AGENTS);
+	}
+
 	get configFilePath(): string {
 		return this.resolvedConfigPath;
 	}
@@ -209,6 +213,7 @@ export class FileSystem {
 			join(backlogDir, DEFAULT_DIRECTORIES.ARCHIVE_MILESTONES),
 			join(backlogDir, DEFAULT_DIRECTORIES.DOCS),
 			join(backlogDir, DEFAULT_DIRECTORIES.DECISIONS),
+			join(backlogDir, DEFAULT_DIRECTORIES.AGENTS),
 		];
 
 		for (const dir of directories) {
