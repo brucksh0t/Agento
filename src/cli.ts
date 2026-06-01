@@ -30,6 +30,8 @@ import {
 	updateReadmeWithBoard,
 } from "./index.ts";
 import {
+	AGENT_TASK_STATUSES,
+	type AgentTaskStatus,
 	type BacklogConfig,
 	type Decision,
 	type DecisionSearchResult,
@@ -2628,6 +2630,53 @@ taskCmd
 			const decision = options.approve ? "approve" : "reject";
 			const task = await agents.reviewTask(taskId, decision, { note: options.note });
 			console.log(`Review ${decision === "approve" ? "approved" : "rejected"} for ${task.id}.`);
+			printAgentTaskSummary(task);
+		} catch (err) {
+			console.error(err instanceof Error ? err.message : String(err));
+			process.exitCode = 1;
+		}
+	});
+
+taskCmd
+	.command("log <taskId>")
+	.description("log a progress / run-log entry on a task (appended to implementation notes)")
+	.requiredOption("--note <text>", "progress note")
+	.option("--agent <agentId>", "agent logging the progress")
+	.option("--status <agentStatus>", "set agent workflow status (waiting|working|blocked|review|done)")
+	.action(async (taskId: string, options: { note: string; agent?: string; status?: string }) => {
+		const cwd = await requireProjectRoot();
+		const core = new Core(cwd);
+		const agents = new AgentManager(core);
+		try {
+			const agentStatus = options.status as AgentTaskStatus | undefined;
+			if (agentStatus && !(AGENT_TASK_STATUSES as readonly string[]).includes(agentStatus)) {
+				console.error(`Invalid status: ${options.status}. Valid: ${AGENT_TASK_STATUSES.join(", ")}`);
+				process.exitCode = 1;
+				return;
+			}
+			const task = await agents.logProgress(taskId, { note: options.note, agent: options.agent, agentStatus });
+			console.log(`Logged progress on ${task.id}.`);
+			printAgentTaskSummary(task);
+		} catch (err) {
+			console.error(err instanceof Error ? err.message : String(err));
+			process.exitCode = 1;
+		}
+	});
+
+taskCmd
+	.command("artifact <taskId>")
+	.description("record result artifact path(s) on a task")
+	.requiredOption("--path <path>", "artifact path (repeatable)", (value: string, previous: string[]) => [
+		...(previous ?? []),
+		value,
+	])
+	.action(async (taskId: string, options: { path: string[] }) => {
+		const cwd = await requireProjectRoot();
+		const core = new Core(cwd);
+		const agents = new AgentManager(core);
+		try {
+			const task = await agents.recordArtifacts(taskId, options.path);
+			console.log(`Recorded ${options.path.length} artifact(s) on ${task.id}.`);
 			printAgentTaskSummary(task);
 		} catch (err) {
 			console.error(err instanceof Error ? err.message : String(err));

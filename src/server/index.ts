@@ -11,6 +11,7 @@ import { isCreateLockError } from "../file-system/operations.ts";
 import { BacklogToolError } from "../mcp/errors/mcp-errors.ts";
 import { MilestoneHandlers } from "../mcp/tools/milestones/handlers.ts";
 import {
+	type AgentTaskStatus,
 	DOCUMENT_TYPE_VALUES,
 	type Document,
 	type SearchPriorityFilter,
@@ -348,6 +349,13 @@ export class BacklogServer {
 					},
 					"/api/tasks/:id/review": {
 						POST: async (req: Request & { params: { id: string } }) => await this.handleReviewTask(req, req.params.id),
+					},
+					"/api/tasks/:id/log": {
+						POST: async (req: Request & { params: { id: string } }) => await this.handleLogProgress(req, req.params.id),
+					},
+					"/api/tasks/:id/artifact": {
+						POST: async (req: Request & { params: { id: string } }) =>
+							await this.handleRecordArtifacts(req, req.params.id),
 					},
 					"/api/statuses": {
 						GET: async () => await this.handleGetStatuses(),
@@ -1125,6 +1133,44 @@ export class BacklogServer {
 			return Response.json(task);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : "Failed to review task";
+			return Response.json({ error: message }, { status: 400 });
+		}
+	}
+
+	private async handleLogProgress(req: Request, taskId: string): Promise<Response> {
+		try {
+			const body = (await req.json().catch(() => ({}))) as {
+				note?: string;
+				agent?: string;
+				agentStatus?: AgentTaskStatus;
+			};
+			if (!body.note) {
+				return Response.json({ error: "note is required" }, { status: 400 });
+			}
+			const task = await this.agents.logProgress(taskId, {
+				note: body.note,
+				agent: body.agent,
+				agentStatus: body.agentStatus,
+			});
+			this.broadcastTasksUpdated();
+			return Response.json(task);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : "Failed to log progress";
+			return Response.json({ error: message }, { status: 400 });
+		}
+	}
+
+	private async handleRecordArtifacts(req: Request, taskId: string): Promise<Response> {
+		try {
+			const body = (await req.json().catch(() => ({}))) as { paths?: string[] };
+			if (!Array.isArray(body.paths) || body.paths.length === 0) {
+				return Response.json({ error: "paths must be a non-empty array" }, { status: 400 });
+			}
+			const task = await this.agents.recordArtifacts(taskId, body.paths);
+			this.broadcastTasksUpdated();
+			return Response.json(task);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : "Failed to record artifacts";
 			return Response.json({ error: message }, { status: 400 });
 		}
 	}

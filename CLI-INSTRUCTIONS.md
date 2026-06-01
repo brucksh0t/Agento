@@ -207,6 +207,18 @@ A second agent claiming an actively-claimed card fails with a non-zero exit code
 Handoff records `handoff_to`, reassigns the task, releases the current claim,
 resets the agent status to `waiting`, and stores the note as `last_agent_note`.
 
+### Progress logs & artifacts
+
+| Action | Example |
+|--------|---------|
+| Log a progress / run-log entry | `backlog task log BACK-1 --agent codex --note "ran tests, 2 failing"` |
+| Log + update workflow status | `backlog task log BACK-1 --agent codex --note "blocked on API key" --status blocked` |
+| Record result artifact(s) | `backlog task artifact BACK-1 --path dist/out.txt --path logs/run.log` |
+
+`task log` appends a timestamped, attributed bullet to the task's Implementation
+Notes and sets `last_agent_note`. `task artifact` appends de-duplicated paths to
+`artifact_paths`.
+
 ### Human review gate
 
 Mark a task so it cannot be moved to Done (the terminal status) by an agent until
@@ -233,6 +245,26 @@ blocked with a non-zero exit code until the task is approved.
 
 Coordination state is shown in `backlog task <id> --plain` (assigned agent,
 claim + lease, agent status, handoff target, review requirement, artifacts, last note).
+
+### MCP tools (agent-native)
+
+MCP-connected agents (Claude Code, Codex, Gemini CLI, …) coordinate through the
+Backlog.md MCP server rather than the CLI. The same coordination layer is exposed
+as MCP tools (start the server with `backlog mcp start`):
+
+| Tool | Purpose |
+|------|---------|
+| `agent_register` | register / come online (idempotent) |
+| `agent_list` | list registered agents + presence |
+| `task_claim` | claim a task before working it (lease + conflict guard) |
+| `task_release` | release a claim |
+| `task_handoff` | hand a task to another agent with a note |
+| `task_log` | append a progress / run-log entry, optionally set agent status |
+| `task_artifact` | record result artifact paths |
+| `task_review` | record a human review decision (approve / reject) |
+
+These call the same `AgentManager` as the CLI and REST API, so all three surfaces
+share one source of truth (the markdown files) and the same safeguards.
 
 ## Board Operations
 

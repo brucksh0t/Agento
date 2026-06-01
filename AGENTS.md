@@ -63,8 +63,11 @@ human overwatch surface. On top of that, AgentBoard adds an agent control layer.
      different card or coordinate; only use `--force` if you know the holder is dead.
    - Claims expire (default 30 min). Renew by claiming again. Stale claims are
      reclaimable by anyone.
-3. **Leave a trail.** When pausing, blocking, or finishing, update the card:
-   record artifacts and a `last_agent_note` so the next agent has context.
+3. **Leave a trail.** As you work, log progress and record artifacts so the next
+   agent (and the human) has context:
+   `backlog task log BACK-1 --agent <you> --note "what happened"` and
+   `backlog task artifact BACK-1 --path <result>`.
+   MCP-connected agents use the equivalent `task_log` / `task_artifact` tools.
 4. **Hand off explicitly** instead of dropping a card:
    `backlog task handoff BACK-1 --to <other> --from <you> --note "what's left"`
 5. **Respect the review gate.** A card with `requires_human_review: true` cannot
@@ -86,6 +89,11 @@ normally should not hand-edit these):
 | `handoff_to` | agent the task should go to next |
 | `artifact_paths` | result artifacts produced for the task |
 | `last_agent_note` | latest note / handoff context |
+
+**MCP-connected agents** (Claude Code, Codex, Gemini CLI) coordinate through MCP
+tools rather than the CLI: `agent_register`, `agent_list`, `task_claim`,
+`task_release`, `task_handoff`, `task_log`, `task_artifact`, `task_review`. They
+back onto the same coordination layer as the CLI and web UI.
 
 See `CLI-INSTRUCTIONS.md` (AgentBoard section) for the full command reference.
 

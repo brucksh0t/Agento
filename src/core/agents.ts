@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { DEFAULT_CLAIM_LEASE_MINUTES } from "../constants/index.ts";
 import { parseAgent } from "../markdown/parser.ts";
 import { serializeAgent } from "../markdown/serializer.ts";
-import type { Agent, AgentRegisterInput, AgentRuntimeStatus, Task } from "../types/index.ts";
+import type { Agent, AgentRegisterInput, AgentRuntimeStatus, AgentTaskStatus, Task } from "../types/index.ts";
 import { getTerminalStatus } from "../utils/terminal-status.ts";
 import type { Core } from "./backlog.ts";
 
@@ -279,6 +279,49 @@ export class AgentManager {
 				task.agentStatus = "blocked";
 				task.lastAgentNote = options.note?.trim() ? `review rejected: ${options.note.trim()}` : "review rejected";
 			}
+			await this.core.updateTask(task);
+			return (await this.core.getTask(task.id)) ?? task;
+		});
+	}
+
+	/**
+	 * Append a progress / run-log entry to the task's Implementation Notes and set
+	 * it as the latest agent note. Optionally update the agent workflow status.
+	 * This is the primary "log as you work" verb for autonomous agents.
+	 */
+	async logProgress(
+		taskId: string,
+		options: { agent?: string; note: string; agentStatus?: AgentTaskStatus },
+	): Promise<Task> {
+		const note = options.note?.trim();
+		if (!note) {
+			throw new AgentCoordinationError("A non-empty note is required to log progress.");
+		}
+		return this.core.withCreateLock(async () => {
+			const task = await this.loadTaskOrThrow(taskId);
+			const who = options.agent ? normalizeAgentId(options.agent) : (task.claimedBy ?? task.assignedAgent ?? "agent");
+			const entry = `- ${nowIso()} — ${who}: ${note}`;
+			const existing = task.implementationNotes?.trim();
+			task.implementationNotes = existing ? `${existing}\n${entry}` : entry;
+			task.lastAgentNote = `${who}: ${note}`;
+			if (options.agentStatus) {
+				task.agentStatus = options.agentStatus;
+			}
+			await this.core.updateTask(task);
+			return (await this.core.getTask(task.id)) ?? task;
+		});
+	}
+
+	/** Record result artifact paths on the task (de-duplicated, appended to any existing). */
+	async recordArtifacts(taskId: string, paths: string[]): Promise<Task> {
+		const cleaned = paths.map((p) => p.trim()).filter(Boolean);
+		if (cleaned.length === 0) {
+			throw new AgentCoordinationError("At least one artifact path is required.");
+		}
+		return this.core.withCreateLock(async () => {
+			const task = await this.loadTaskOrThrow(taskId);
+			const merged = new Set([...(task.artifactPaths ?? []), ...cleaned]);
+			task.artifactPaths = [...merged];
 			await this.core.updateTask(task);
 			return (await this.core.getTask(task.id)) ?? task;
 		});

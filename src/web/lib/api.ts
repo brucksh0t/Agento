@@ -300,6 +300,20 @@ export class ApiClient {
 		});
 	}
 
+	async logProgress(id: string, note: string, options?: { agent?: string; agentStatus?: string }): Promise<Task> {
+		return this.fetchJson<Task>(`${API_BASE}/tasks/${id}/log`, {
+			method: "POST",
+			body: JSON.stringify({ note, ...options }),
+		});
+	}
+
+	async recordArtifacts(id: string, paths: string[]): Promise<Task> {
+		return this.fetchJson<Task>(`${API_BASE}/tasks/${id}/artifact`, {
+			method: "POST",
+			body: JSON.stringify({ paths }),
+		});
+	}
+
 	async getCleanupPreview(age: number): Promise<{
 		count: number;
 		tasks: Array<{ id: string; title: string; updatedDate?: string; createdDate: string }>;
