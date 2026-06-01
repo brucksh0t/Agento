@@ -4,9 +4,11 @@ title: Multi-agent dashboard + agent sidebar in web UI
 status: To Do
 assignee: []
 created_date: '2026-06-01 15:53'
+updated_date: '2026-06-01 16:12'
 labels:
   - agentboard
   - roadmap
+milestone: AgentBoard v1
 dependencies: []
 ordinal: 29000
 assigned_agent: claude

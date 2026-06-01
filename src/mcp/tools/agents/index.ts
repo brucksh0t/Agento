@@ -5,6 +5,7 @@ import {
 	type AgentRecommendArgs,
 	type AgentRegisterArgs,
 	AgentToolHandlers,
+	type ProjectStatusArgs,
 	type TaskArtifactArgs,
 	type TaskClaimArgs,
 	type TaskHandoffArgs,
@@ -16,6 +17,8 @@ import {
 	agentListSchema,
 	agentRecommendSchema,
 	agentRegisterSchema,
+	projectListSchema,
+	projectStatusSchema,
 	taskArtifactSchema,
 	taskClaimSchema,
 	taskHandoffSchema,
@@ -105,6 +108,27 @@ export function registerAgentTools(server: McpServer): void {
 			},
 			taskArtifactSchema,
 			async (input) => h.recordArtifacts(input as TaskArtifactArgs),
+		),
+		createSimpleValidatedTool(
+			{
+				name: "project_list",
+				description: "List AgentBoard projects (grouped by milestone) with their lifecycle phase and progress.",
+				inputSchema: projectListSchema,
+				annotations: { title: "List Projects", readOnlyHint: true, destructiveHint: false },
+			},
+			projectListSchema,
+			async () => h.projectList(),
+		),
+		createSimpleValidatedTool(
+			{
+				name: "project_status",
+				description:
+					"Show a project's lifecycle phase (planning/building/blocked/review/done), progress, blockers, work awaiting review, and unclaimed tasks with a recommended agent for each. Use this to pick up a project and decide what to delegate.",
+				inputSchema: projectStatusSchema,
+				annotations: { title: "Project Status", readOnlyHint: true, destructiveHint: false },
+			},
+			projectStatusSchema,
+			async (input) => h.projectStatus(input as ProjectStatusArgs),
 		),
 		createSimpleValidatedTool(
 			{

@@ -18,6 +18,14 @@ export { recommendAgents, summarizeRecommendation } from "./core/agent-recommend
 export { AgentCoordinationError, AgentManager, normalizeAgentId } from "./core/agents.ts";
 // Core entry point
 export { Core } from "./core/backlog.ts";
+export {
+	buildProjectSummary,
+	derivePhase,
+	formatProjectSummary,
+	PROJECT_PHASES,
+	type ProjectPhase,
+	type ProjectSummary,
+} from "./core/project-lifecycle.ts";
 export { SearchService } from "./core/search-service.ts";
 // File system operations
 export { FileSystem } from "./file-system/operations.ts";

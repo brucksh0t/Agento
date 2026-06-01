@@ -246,6 +246,38 @@ blocked with a non-zero exit code until the task is approved.
 Coordination state is shown in `backlog task <id> --plain` (assigned agent,
 claim + lease, agent status, handoff target, review requirement, artifacts, last note).
 
+### Agent capability profiles & intelligent delegation
+
+Give each agent an editable capability/cost profile, then ask the board who should
+take a task — and why.
+
+| Action | Example |
+|--------|---------|
+| Set a profile | `backlog agent register codex --skills typescript,api,tests --coding 4 --speed 4 --cost medium` |
+| Recommend an agent for a task | `backlog agent recommend BACK-1` |
+| Bias the suggestion | `backlog agent recommend BACK-1 --optimize quality` (or `speed` / `cost` / `balanced`) |
+
+The recommender scores each agent by skill match + coding quality + speed + cost,
+then explains the ranking in plain language (e.g. *"claude — matches react, tests;
+top-tier coding (5/5); higher cost"*). Profiles are editable starting estimates, not
+fixed benchmarks — tune them and the advice adapts.
+
+### Projects & lifecycle
+
+A **project** is a named group of tasks (a milestone, or any shared label). The board
+derives a lifecycle phase so you can pick a project back up and see where it stands.
+
+| Action | Example |
+|--------|---------|
+| List projects + phase + progress | `backlog project list` |
+| Show a project's status | `backlog project status "AgentBoard v1"` |
+| Bias the delegation suggestions | `backlog project status "AgentBoard v1" --optimize cost` |
+
+`project status` reports the phase (**planning → building → blocked → review → done**),
+progress, who's working now, what's **awaiting your review**, what's **blocked**, and the
+**unclaimed/delegatable** tasks — each with a recommended agent. Phase priority surfaces
+what needs attention first: a project waiting on you (review) ranks above one merely building.
+
 ### MCP tools (agent-native)
 
 MCP-connected agents (Claude Code, Codex, Gemini CLI, …) coordinate through the
@@ -262,6 +294,9 @@ as MCP tools (start the server with `backlog mcp start`):
 | `task_log` | append a progress / run-log entry, optionally set agent status |
 | `task_artifact` | record result artifact paths |
 | `task_review` | record a human review decision (approve / reject) |
+| `agent_recommend` | suggest which agent should take a task, with rationale |
+| `project_list` | list projects with lifecycle phase + progress |
+| `project_status` | a project's phase, blockers, review queue, and delegatable work |
 
 These call the same `AgentManager` as the CLI and REST API, so all three surfaces
 share one source of truth (the markdown files) and the same safeguards.

@@ -38,6 +38,23 @@ export const agentRecommendSchema: JsonSchema = {
 	additionalProperties: false,
 };
 
+export const projectStatusSchema: JsonSchema = {
+	type: "object",
+	properties: {
+		name: { type: "string", minLength: 1, maxLength: 100 },
+		objective: { type: "string", enum: [...RECOMMEND_OBJECTIVES] },
+	},
+	required: ["name"],
+	additionalProperties: false,
+};
+
+export const projectListSchema: JsonSchema = {
+	type: "object",
+	properties: {},
+	required: [],
+	additionalProperties: false,
+};
+
 export const taskClaimSchema: JsonSchema = {
 	type: "object",
 	properties: {

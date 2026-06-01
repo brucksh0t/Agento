@@ -4,10 +4,11 @@ title: Authority levels for agents (Viewer/Logger/Executor/Delegator/Full)
 status: In Progress
 assignee: []
 created_date: '2026-06-01 15:53'
-updated_date: '2026-06-01 15:53'
+updated_date: '2026-06-01 16:12'
 labels:
   - agentboard
   - roadmap
+milestone: AgentBoard v1
 dependencies: []
 ordinal: 26000
 assigned_agent: codex

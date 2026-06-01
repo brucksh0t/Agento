@@ -4,9 +4,11 @@ title: 'Memory layer: skills/workflows/notes that grow as tasks complete'
 status: To Do
 assignee: []
 created_date: '2026-06-01 15:53'
+updated_date: '2026-06-01 16:12'
 labels:
   - agentboard
   - roadmap
+milestone: AgentBoard v1
 dependencies: []
 ordinal: 27000
 assigned_agent: claude

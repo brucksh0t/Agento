@@ -90,10 +90,17 @@ normally should not hand-edit these):
 | `artifact_paths` | result artifacts produced for the task |
 | `last_agent_note` | latest note / handoff context |
 
+**Picking up a project.** To resume work, check where a project stands and what
+can be delegated: `backlog project status "<project>"` (phase, blockers, review
+queue, and unclaimed tasks with a recommended agent for each). To decide who
+should take a single task, `backlog agent recommend <id>` explains the trade-off
+(skill match, coding quality, speed, cost).
+
 **MCP-connected agents** (Claude Code, Codex, Gemini CLI) coordinate through MCP
 tools rather than the CLI: `agent_register`, `agent_list`, `task_claim`,
-`task_release`, `task_handoff`, `task_log`, `task_artifact`, `task_review`. They
-back onto the same coordination layer as the CLI and web UI.
+`task_release`, `task_handoff`, `task_log`, `task_artifact`, `task_review`,
+`agent_recommend`, `project_list`, `project_status`. They back onto the same
+coordination layer as the CLI and web UI.
 
 See `CLI-INSTRUCTIONS.md` (AgentBoard section) for the full command reference.
 

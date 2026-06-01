@@ -15,6 +15,7 @@ import type {
 import { getTerminalStatus } from "../utils/terminal-status.ts";
 import { recommendAgents } from "./agent-recommender.ts";
 import type { Core } from "./backlog.ts";
+import { attachRecommendations, buildProjectSummary, type ProjectSummary } from "./project-lifecycle.ts";
 
 /** Error raised when an agent operation violates a coordination safeguard. */
 export class AgentCoordinationError extends Error {
@@ -334,6 +335,60 @@ export class AgentManager {
 		const task = await this.loadTaskOrThrow(taskId);
 		const agents = await this.listAgents();
 		return recommendAgents(task, agents, objective);
+	}
+
+	// --- Projects & lifecycle -----------------------------------------------
+
+	private async projectStatuses(): Promise<readonly string[]> {
+		const config = await this.core.filesystem.loadConfig();
+		return config?.statuses ?? [];
+	}
+
+	/** A task belongs to a project if its milestone or one of its labels matches the name. */
+	private taskInProject(task: Task, name: string): boolean {
+		const n = name.trim().toLowerCase();
+		if (task.milestone && task.milestone.trim().toLowerCase() === n) return true;
+		return (task.labels ?? []).some((label) => label.trim().toLowerCase() === n);
+	}
+
+	/**
+	 * Summarize a project (a milestone or label) — its lifecycle phase, progress,
+	 * who's working, what's blocked/awaiting review, and which unclaimed tasks can
+	 * be delegated (with a recommended agent for each).
+	 */
+	async projectStatus(name: string, options: { objective?: RecommendObjective } = {}): Promise<ProjectSummary> {
+		const tasks = (await this.core.filesystem.listTasks()).filter((t) => this.taskInProject(t, name));
+		const statuses = await this.projectStatuses();
+		const summary = buildProjectSummary(name, tasks, statuses);
+		if (summary.unclaimed.length > 0) {
+			const agents = await this.listAgents();
+			if (agents.length > 0) {
+				const byTask = new Map(
+					summary.unclaimed.map((brief) => {
+						const full = tasks.find((t) => t.id === brief.id) as Task;
+						return [brief.id, recommendAgents(full, agents, options.objective ?? "balanced")] as const;
+					}),
+				);
+				attachRecommendations(summary, byTask);
+			}
+		}
+		return summary;
+	}
+
+	/** List projects (grouped by milestone) with their lifecycle phase and progress. */
+	async listProjects(): Promise<ProjectSummary[]> {
+		const tasks = await this.core.filesystem.listTasks();
+		const statuses = await this.projectStatuses();
+		const groups = new Map<string, Task[]>();
+		for (const task of tasks) {
+			if (!task.milestone) continue;
+			const list = groups.get(task.milestone) ?? [];
+			list.push(task);
+			groups.set(task.milestone, list);
+		}
+		return [...groups.entries()]
+			.map(([name, group]) => buildProjectSummary(name, group, statuses))
+			.sort((a, b) => a.name.localeCompare(b.name));
 	}
 
 	/** Record result artifact paths on the task (de-duplicated, appended to any existing). */

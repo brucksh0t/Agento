@@ -1,5 +1,6 @@
 import { summarizeRecommendation } from "../../../core/agent-recommender.ts";
 import { AgentCoordinationError, AgentManager } from "../../../core/agents.ts";
+import { formatProjectSummary } from "../../../core/project-lifecycle.ts";
 import type { Agent, AgentTaskStatus, RecommendObjective, Task } from "../../../types/index.ts";
 import { HumanReviewRequiredError } from "../../../utils/review-gate.ts";
 import { BacklogToolError } from "../../errors/mcp-errors.ts";
@@ -36,6 +37,7 @@ export type TaskReviewArgs = { id: string; decision: "approve" | "reject"; note?
 export type TaskLogArgs = { id: string; note: string; agent?: string; agentStatus?: AgentTaskStatus };
 export type TaskArtifactArgs = { id: string; paths: string[] };
 export type AgentRecommendArgs = { id: string; objective?: RecommendObjective };
+export type ProjectStatusArgs = { name: string; objective?: RecommendObjective };
 
 function textResult(text: string): CallToolResult {
 	return { content: [{ type: "text", text }] };
@@ -106,6 +108,23 @@ export class AgentToolHandlers {
 	async recordArtifacts(args: TaskArtifactArgs): Promise<CallToolResult> {
 		const task = await guard(() => this.agents.recordArtifacts(args.id, args.paths));
 		return this.result(task, `Recorded ${args.paths.length} artifact(s) on ${task.id}.`);
+	}
+
+	async projectStatus(args: ProjectStatusArgs): Promise<CallToolResult> {
+		const summary = await guard(() => this.agents.projectStatus(args.name, { objective: args.objective }));
+		if (summary.total === 0) {
+			return textResult(`No tasks found for project "${args.name}" (match by milestone or label).`);
+		}
+		return textResult(formatProjectSummary(summary));
+	}
+
+	async projectList(): Promise<CallToolResult> {
+		const projects = await this.agents.listProjects();
+		if (projects.length === 0) {
+			return textResult("No projects yet. Group tasks under a milestone to form a project.");
+		}
+		const lines = projects.map((p) => `  [${p.phase}] ${p.name} — ${p.doneCount}/${p.total} done (${p.progress}%)`);
+		return textResult(`Projects:\n${lines.join("\n")}`);
 	}
 
 	async recommend(args: AgentRecommendArgs): Promise<CallToolResult> {

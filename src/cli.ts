@@ -24,6 +24,7 @@ import {
 	type EnsureMcpGuidelinesResult,
 	ensureMcpGuidelines,
 	exportKanbanBoardToFile,
+	formatProjectSummary,
 	initializeGitRepository,
 	installClaudeAgent,
 	isGitRepository,
@@ -3525,6 +3526,56 @@ agentCmd
 		const agents = new AgentManager(core);
 		const removed = await agents.removeAgent(agentId);
 		console.log(removed ? `Removed agent ${agentId}.` : `Agent ${agentId} not found.`);
+	});
+
+// AgentBoard project lifecycle command group
+const projectCmd = program.command("project").description("view AgentBoard projects and their lifecycle");
+
+projectCmd
+	.command("list")
+	.description("list projects (grouped by milestone) with lifecycle phase and progress")
+	.option("--plain", "machine-readable output")
+	.action(async (options: { plain?: boolean }) => {
+		const cwd = await requireProjectRoot();
+		const core = new Core(cwd);
+		const agents = new AgentManager(core);
+		const projects = await agents.listProjects();
+		if (projects.length === 0) {
+			console.log('No projects yet. Group tasks under a milestone (e.g. task edit <id> -m "My Project").');
+			return;
+		}
+		if (options.plain || shouldAutoPlain) {
+			for (const p of projects) {
+				console.log([p.name, p.phase, `${p.doneCount}/${p.total}`, `${p.progress}%`].join("\t"));
+			}
+			return;
+		}
+		console.log("Projects:");
+		for (const p of projects) {
+			console.log(`  [${p.phase}] ${p.name} — ${p.doneCount}/${p.total} done (${p.progress}%)`);
+		}
+	});
+
+projectCmd
+	.command("status <name>")
+	.description("show a project's lifecycle phase, progress, blockers, and delegatable work")
+	.option("--optimize <objective>", "agent suggestion bias: balanced | quality | speed | cost", "balanced")
+	.action(async (name: string, options: { optimize?: string }) => {
+		const cwd = await requireProjectRoot();
+		const core = new Core(cwd);
+		const agents = new AgentManager(core);
+		const objective = (options.optimize ?? "balanced").toLowerCase();
+		if (!(RECOMMEND_OBJECTIVES as readonly string[]).includes(objective)) {
+			console.error(`Invalid objective: ${options.optimize}. Valid: ${RECOMMEND_OBJECTIVES.join(", ")}`);
+			process.exitCode = 1;
+			return;
+		}
+		const summary = await agents.projectStatus(name, { objective: objective as RecommendObjective });
+		if (summary.total === 0) {
+			console.log(`No tasks found for project "${name}" (match by milestone or label).`);
+			return;
+		}
+		console.log(formatProjectSummary(summary));
 	});
 
 // Agents command group

@@ -105,6 +105,25 @@ describe("MCP AgentBoard coordination tools", () => {
 		expect(text.toLowerCase()).toContain("react");
 	});
 
+	it("reports project lifecycle status with delegatable work", async () => {
+		await call("agent_register", { id: "codex", skills: ["api"], codingScore: 4, speedScore: 4, status: "online" });
+		await call("task_create", { title: "API endpoint", milestone: "Demo Project" });
+		await call("task_create", { title: "API docs", milestone: "Demo Project" });
+		// Claim one so the project is "building" with an active agent.
+		await call("task_claim", { id: "TASK-2", agent: "codex" });
+
+		const status = await call("project_status", { name: "Demo Project", objective: "balanced" });
+		const text = getText(status.content);
+		expect(text).toContain("Project: Demo Project");
+		expect(text).toContain("Building");
+		expect(text).toContain("Working now: codex");
+		expect(text).toContain("Unclaimed / delegatable:");
+		expect(text).toContain("suggest: codex");
+
+		const list = await call("project_list", {});
+		expect(getText(list.content)).toContain("Demo Project");
+	});
+
 	it("approves a review and moves the gated task to Done", async () => {
 		const gated = await mcpServer.filesystem.loadTask("TASK-1");
 		if (!gated) throw new Error("missing task");
