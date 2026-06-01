@@ -3,8 +3,17 @@ import { join } from "node:path";
 import { DEFAULT_CLAIM_LEASE_MINUTES } from "../constants/index.ts";
 import { parseAgent } from "../markdown/parser.ts";
 import { serializeAgent } from "../markdown/serializer.ts";
-import type { Agent, AgentRegisterInput, AgentRuntimeStatus, AgentTaskStatus, Task } from "../types/index.ts";
+import type {
+	Agent,
+	AgentRecommendation,
+	AgentRegisterInput,
+	AgentRuntimeStatus,
+	AgentTaskStatus,
+	RecommendObjective,
+	Task,
+} from "../types/index.ts";
 import { getTerminalStatus } from "../utils/terminal-status.ts";
+import { recommendAgents } from "./agent-recommender.ts";
 import type { Core } from "./backlog.ts";
 
 /** Error raised when an agent operation violates a coordination safeguard. */
@@ -112,6 +121,10 @@ export class AgentManager {
 			status: input.status ?? existing?.status ?? "offline",
 			registeredDate: existing?.registeredDate || nowIso(),
 			lastSeen: existing?.lastSeen,
+			skills: input.skills ?? existing?.skills,
+			codingScore: input.codingScore ?? existing?.codingScore,
+			speedScore: input.speedScore ?? existing?.speedScore,
+			costTier: input.costTier ?? existing?.costTier,
 			rawContent: existing?.rawContent,
 		};
 		if (agent.status === "online") {
@@ -310,6 +323,17 @@ export class AgentManager {
 			await this.core.updateTask(task);
 			return (await this.core.getTask(task.id)) ?? task;
 		});
+	}
+
+	/**
+	 * Rank registered agents by their fit for a task and explain why, biased by the
+	 * given objective (balanced / quality / speed / cost). The board's "who should
+	 * do this?" advisor.
+	 */
+	async recommendAgents(taskId: string, objective: RecommendObjective = "balanced"): Promise<AgentRecommendation[]> {
+		const task = await this.loadTaskOrThrow(taskId);
+		const agents = await this.listAgents();
+		return recommendAgents(task, agents, objective);
 	}
 
 	/** Record result artifact paths on the task (de-duplicated, appended to any existing). */

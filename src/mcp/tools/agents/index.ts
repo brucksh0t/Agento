@@ -2,6 +2,7 @@ import type { McpServer } from "../../server.ts";
 import type { McpToolHandler } from "../../types.ts";
 import { createSimpleValidatedTool } from "../../validation/tool-wrapper.ts";
 import {
+	type AgentRecommendArgs,
 	type AgentRegisterArgs,
 	AgentToolHandlers,
 	type TaskArtifactArgs,
@@ -13,6 +14,7 @@ import {
 } from "./handlers.ts";
 import {
 	agentListSchema,
+	agentRecommendSchema,
 	agentRegisterSchema,
 	taskArtifactSchema,
 	taskClaimSchema,
@@ -103,6 +105,17 @@ export function registerAgentTools(server: McpServer): void {
 			},
 			taskArtifactSchema,
 			async (input) => h.recordArtifacts(input as TaskArtifactArgs),
+		),
+		createSimpleValidatedTool(
+			{
+				name: "agent_recommend",
+				description:
+					"Suggest which registered agent should take a task and explain why, biased by an objective (balanced|quality|speed|cost). Use this to delegate intelligently based on each agent's skills, coding quality, speed and cost.",
+				inputSchema: agentRecommendSchema,
+				annotations: { title: "Recommend Agent", readOnlyHint: true, destructiveHint: false },
+			},
+			agentRecommendSchema,
+			async (input) => h.recommend(input as AgentRecommendArgs),
 		),
 		createSimpleValidatedTool(
 			{

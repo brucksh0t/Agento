@@ -238,8 +238,19 @@ export function parseAgent(content: string): Agent {
 		status: status === "online" ? "online" : "offline",
 		registeredDate: normalizeDate(frontmatter.registered_date),
 		lastSeen: frontmatter.last_seen ? String(frontmatter.last_seen) : undefined,
+		skills: Array.isArray(frontmatter.skills) ? frontmatter.skills.map(String) : undefined,
+		codingScore: frontmatter.coding_score !== undefined ? Number(frontmatter.coding_score) : undefined,
+		speedScore: frontmatter.speed_score !== undefined ? Number(frontmatter.speed_score) : undefined,
+		costTier: parseCostTier(frontmatter.cost_tier),
 		rawContent,
 	};
+}
+
+function parseCostTier(value: unknown): "low" | "medium" | "high" | undefined {
+	const normalized = String(value ?? "")
+		.trim()
+		.toLowerCase();
+	return normalized === "low" || normalized === "medium" || normalized === "high" ? normalized : undefined;
 }
 
 export function parseDecision(content: string): Decision {

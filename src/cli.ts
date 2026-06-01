@@ -27,9 +27,11 @@ import {
 	initializeGitRepository,
 	installClaudeAgent,
 	isGitRepository,
+	summarizeRecommendation,
 	updateReadmeWithBoard,
 } from "./index.ts";
 import {
+	AGENT_COST_TIERS,
 	AGENT_TASK_STATUSES,
 	type AgentTaskStatus,
 	type BacklogConfig,
@@ -40,6 +42,8 @@ import {
 	type DocumentSearchResult,
 	isLocalEditableTask,
 	type Milestone,
+	RECOMMEND_OBJECTIVES,
+	type RecommendObjective,
 	type SearchPriorityFilter,
 	type SearchResult,
 	type SearchResultType,
@@ -3398,19 +3402,92 @@ agentCmd
 
 agentCmd
 	.command("register <agentId>")
-	.description("register or update an agent")
+	.description("register or update an agent (incl. capability/cost profile)")
 	.option("--name <name>", "display name")
 	.option("--role <role>", "role/specialty (e.g. implementer, reviewer)")
 	.option("--online", "mark the agent online")
 	.option("--offline", "mark the agent offline")
-	.action(async (agentId: string, options: { name?: string; role?: string; online?: boolean; offline?: boolean }) => {
+	.option("--skills <skills>", "comma-separated strength tags (e.g. frontend,react,tests)")
+	.option("--coding <1-5>", "coding quality score (1-5)")
+	.option("--speed <1-5>", "speed score (1-5)")
+	.option("--cost <tier>", "relative cost tier: low | medium | high")
+	.action(
+		async (
+			agentId: string,
+			options: {
+				name?: string;
+				role?: string;
+				online?: boolean;
+				offline?: boolean;
+				skills?: string;
+				coding?: string;
+				speed?: string;
+				cost?: string;
+			},
+		) => {
+			const cwd = await requireProjectRoot();
+			const core = new Core(cwd);
+			const agents = new AgentManager(core);
+			try {
+				const status = options.online ? "online" : options.offline ? "offline" : undefined;
+				const cost = options.cost?.toLowerCase();
+				if (cost && !(AGENT_COST_TIERS as readonly string[]).includes(cost)) {
+					console.error(`Invalid cost tier: ${options.cost}. Valid: ${AGENT_COST_TIERS.join(", ")}`);
+					process.exitCode = 1;
+					return;
+				}
+				const agent = await agents.registerAgent({
+					id: agentId,
+					name: options.name,
+					role: options.role,
+					status,
+					skills: options.skills ? parseDelimitedStringList(options.skills) : undefined,
+					codingScore: options.coding !== undefined ? Number(options.coding) : undefined,
+					speedScore: options.speed !== undefined ? Number(options.speed) : undefined,
+					costTier: cost as "low" | "medium" | "high" | undefined,
+				});
+				console.log(`Registered agent ${agent.id} (${agent.status}).`);
+			} catch (err) {
+				console.error(err instanceof Error ? err.message : String(err));
+				process.exitCode = 1;
+			}
+		},
+	);
+
+agentCmd
+	.command("recommend <taskId>")
+	.description("suggest which agent should take a task, and explain why")
+	.option("--optimize <objective>", "balanced | quality | speed | cost", "balanced")
+	.option("--plain", "machine-readable output (one agent per line)")
+	.action(async (taskId: string, options: { optimize?: string; plain?: boolean }) => {
 		const cwd = await requireProjectRoot();
 		const core = new Core(cwd);
 		const agents = new AgentManager(core);
 		try {
-			const status = options.online ? "online" : options.offline ? "offline" : undefined;
-			const agent = await agents.registerAgent({ id: agentId, name: options.name, role: options.role, status });
-			console.log(`Registered agent ${agent.id} (${agent.status}).`);
+			const objective = (options.optimize ?? "balanced").toLowerCase();
+			if (!(RECOMMEND_OBJECTIVES as readonly string[]).includes(objective)) {
+				console.error(`Invalid objective: ${options.optimize}. Valid: ${RECOMMEND_OBJECTIVES.join(", ")}`);
+				process.exitCode = 1;
+				return;
+			}
+			const recs = await agents.recommendAgents(taskId, objective as RecommendObjective);
+			if (recs.length === 0) {
+				console.log(
+					"No agents registered. Register agents with profiles first: backlog agent register <id> --skills ...",
+				);
+				return;
+			}
+			if (options.plain || shouldAutoPlain) {
+				for (const rec of recs) {
+					console.log([rec.agent.id, rec.score, rec.matchedSkills.join("|") || "-"].join("\t"));
+				}
+				return;
+			}
+			console.log(summarizeRecommendation(recs, objective as RecommendObjective));
+			console.log("\nFull ranking:");
+			for (const rec of recs) {
+				console.log(`  ${rec.score.toString().padStart(3)}  ${rec.rationale}`);
+			}
 		} catch (err) {
 			console.error(err instanceof Error ? err.message : String(err));
 			process.exitCode = 1;

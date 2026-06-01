@@ -87,6 +87,24 @@ describe("MCP AgentBoard coordination tools", () => {
 		expect(task?.claimedBy).toBeUndefined();
 	});
 
+	it("recommends an agent for a task and explains why", async () => {
+		await call("agent_register", {
+			id: "claude",
+			skills: ["react", "tests"],
+			codingScore: 5,
+			speedScore: 3,
+			status: "online",
+		});
+		await call("agent_register", { id: "grok", skills: ["scripts"], codingScore: 3, speedScore: 5, status: "online" });
+		// TASK-1 title "Coordinated card" has no react/tests keywords, so add a fitting task.
+		await call("task_create", { title: "Build React component with tests", labels: ["frontend"] });
+		const rec = await call("agent_recommend", { id: "TASK-2", objective: "quality" });
+		const text = getText(rec.content);
+		expect(text).toContain("Recommended (quality):");
+		expect(text).toContain("claude");
+		expect(text.toLowerCase()).toContain("react");
+	});
+
 	it("approves a review and moves the gated task to Done", async () => {
 		const gated = await mcpServer.filesystem.loadTask("TASK-1");
 		if (!gated) throw new Error("missing task");

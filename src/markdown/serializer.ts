@@ -139,6 +139,10 @@ export function serializeAgent(agent: Agent): string {
 		status: agent.status,
 		registered_date: agent.registeredDate,
 		...(agent.lastSeen && { last_seen: agent.lastSeen }),
+		...(agent.skills && agent.skills.length > 0 && { skills: agent.skills }),
+		...(agent.codingScore !== undefined && { coding_score: agent.codingScore }),
+		...(agent.speedScore !== undefined && { speed_score: agent.speedScore }),
+		...(agent.costTier && { cost_tier: agent.costTier }),
 	};
 
 	const body = agent.rawContent?.trim() ? agent.rawContent.trim() : `## Notes\n\n${agent.name} agent.`;

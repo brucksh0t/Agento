@@ -1,5 +1,6 @@
+import { summarizeRecommendation } from "../../../core/agent-recommender.ts";
 import { AgentCoordinationError, AgentManager } from "../../../core/agents.ts";
-import type { Agent, AgentTaskStatus, Task } from "../../../types/index.ts";
+import type { Agent, AgentTaskStatus, RecommendObjective, Task } from "../../../types/index.ts";
 import { HumanReviewRequiredError } from "../../../utils/review-gate.ts";
 import { BacklogToolError } from "../../errors/mcp-errors.ts";
 import type { McpServer } from "../../server.ts";
@@ -18,13 +19,23 @@ async function guard<T>(fn: () => Promise<T>): Promise<T> {
 	}
 }
 
-export type AgentRegisterArgs = { id: string; name?: string; role?: string; status?: "online" | "offline" };
+export type AgentRegisterArgs = {
+	id: string;
+	name?: string;
+	role?: string;
+	status?: "online" | "offline";
+	skills?: string[];
+	codingScore?: number;
+	speedScore?: number;
+	costTier?: "low" | "medium" | "high";
+};
 export type TaskClaimArgs = { id: string; agent: string; leaseMinutes?: number; force?: boolean };
 export type TaskReleaseArgs = { id: string; agent?: string; force?: boolean };
 export type TaskHandoffArgs = { id: string; to: string; from?: string; note?: string };
 export type TaskReviewArgs = { id: string; decision: "approve" | "reject"; note?: string };
 export type TaskLogArgs = { id: string; note: string; agent?: string; agentStatus?: AgentTaskStatus };
 export type TaskArtifactArgs = { id: string; paths: string[] };
+export type AgentRecommendArgs = { id: string; objective?: RecommendObjective };
 
 function textResult(text: string): CallToolResult {
 	return { content: [{ type: "text", text }] };
@@ -95,5 +106,15 @@ export class AgentToolHandlers {
 	async recordArtifacts(args: TaskArtifactArgs): Promise<CallToolResult> {
 		const task = await guard(() => this.agents.recordArtifacts(args.id, args.paths));
 		return this.result(task, `Recorded ${args.paths.length} artifact(s) on ${task.id}.`);
+	}
+
+	async recommend(args: AgentRecommendArgs): Promise<CallToolResult> {
+		const objective = args.objective ?? "balanced";
+		const recs = await guard(() => this.agents.recommendAgents(args.id, objective));
+		if (recs.length === 0) {
+			return textResult("No agents registered. Register agents with capability profiles first (agent_register).");
+		}
+		const ranking = recs.map((r) => `  ${r.score.toString().padStart(3)}  ${r.rationale}`).join("\n");
+		return textResult(`${summarizeRecommendation(recs, objective)}\n\nFull ranking:\n${ranking}`);
 	}
 }

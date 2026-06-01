@@ -1,4 +1,4 @@
-import { AGENT_TASK_STATUSES } from "../../../types/index.ts";
+import { AGENT_COST_TIERS, AGENT_TASK_STATUSES, RECOMMEND_OBJECTIVES } from "../../../types/index.ts";
 import type { JsonSchema } from "../../validation/validators.ts";
 
 const taskId: Record<string, JsonSchema> = {
@@ -12,6 +12,10 @@ export const agentRegisterSchema: JsonSchema = {
 		name: { type: "string", maxLength: 100 },
 		role: { type: "string", maxLength: 100 },
 		status: { type: "string", enum: ["online", "offline"] },
+		skills: { type: "array", items: { type: "string", maxLength: 50 } },
+		codingScore: { type: "number", minimum: 1, maximum: 5 },
+		speedScore: { type: "number", minimum: 1, maximum: 5 },
+		costTier: { type: "string", enum: [...AGENT_COST_TIERS] },
 	},
 	required: ["id"],
 	additionalProperties: false,
@@ -21,6 +25,16 @@ export const agentListSchema: JsonSchema = {
 	type: "object",
 	properties: {},
 	required: [],
+	additionalProperties: false,
+};
+
+export const agentRecommendSchema: JsonSchema = {
+	type: "object",
+	properties: {
+		...taskId,
+		objective: { type: "string", enum: [...RECOMMEND_OBJECTIVES] },
+	},
+	required: ["id"],
 	additionalProperties: false,
 };
 

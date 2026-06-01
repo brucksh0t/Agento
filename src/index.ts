@@ -14,6 +14,7 @@ export { exportKanbanBoardToFile, generateKanbanBoardWithMetadata } from "./boar
 // Constants
 export * from "./constants/index.ts";
 // Agent coordination layer (AgentBoard)
+export { recommendAgents, summarizeRecommendation } from "./core/agent-recommender.ts";
 export { AgentCoordinationError, AgentManager, normalizeAgentId } from "./core/agents.ts";
 // Core entry point
 export { Core } from "./core/backlog.ts";

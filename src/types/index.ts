@@ -89,6 +89,14 @@ export type AgentTaskStatus = (typeof AGENT_TASK_STATUSES)[number];
 export const AGENT_RUNTIME_STATUSES = ["online", "offline"] as const;
 export type AgentRuntimeStatus = (typeof AGENT_RUNTIME_STATUSES)[number];
 
+/** Relative cost tier of running an agent (used by the delegation recommender). */
+export const AGENT_COST_TIERS = ["low", "medium", "high"] as const;
+export type AgentCostTier = (typeof AGENT_COST_TIERS)[number];
+
+/** How the delegation recommender weighs competing factors. */
+export const RECOMMEND_OBJECTIVES = ["balanced", "quality", "speed", "cost"] as const;
+export type RecommendObjective = (typeof RECOMMEND_OBJECTIVES)[number];
+
 /**
  * A registered agent in the AgentBoard registry. Stored as a markdown file
  * under `backlog/agents/` to keep storage markdown-native and local-first.
@@ -106,6 +114,15 @@ export interface Agent {
 	registeredDate: string;
 	/** ISO timestamp the agent was last seen online (heartbeat). */
 	lastSeen?: string;
+	// --- Capability / cost profile (powers the delegation recommender) ---
+	/** Strength tags this agent is good at, e.g. ["frontend", "react", "refactor", "tests"]. */
+	skills?: string[];
+	/** Coding quality, 1 (basic) – 5 (excellent). */
+	codingScore?: number;
+	/** Throughput / latency, 1 (slow) – 5 (fast). */
+	speedScore?: number;
+	/** Relative cost of running this agent. */
+	costTier?: AgentCostTier;
 	/** Raw markdown body (notes about the agent). */
 	readonly rawContent?: string;
 }
@@ -115,6 +132,21 @@ export interface AgentRegisterInput {
 	name?: string;
 	role?: string;
 	status?: AgentRuntimeStatus;
+	skills?: string[];
+	codingScore?: number;
+	speedScore?: number;
+	costTier?: AgentCostTier;
+}
+
+/** A single agent's fit for a task, with an explanation. */
+export interface AgentRecommendation {
+	agent: Agent;
+	/** Overall fit score, 0–100. */
+	score: number;
+	/** Matched skill tags that drove the score. */
+	matchedSkills: string[];
+	/** Human-readable explanation of why this agent ranks where it does. */
+	rationale: string;
 }
 
 export interface MilestoneBucket {
