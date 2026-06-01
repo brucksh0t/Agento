@@ -1,6 +1,7 @@
 import { dirname, join } from "node:path";
 import type { Server, ServerWebSocket } from "bun";
 import { $ } from "bun";
+import { AgentManager } from "../core/agents.ts";
 import { Core } from "../core/backlog.ts";
 import type { ContentStore } from "../core/content-store.ts";
 import { initializeProject } from "../core/init.ts";
@@ -198,8 +199,11 @@ export class BacklogServer {
 	private storeReadyBroadcasted = false;
 	private configWatcher: { stop: () => void } | null = null;
 
+	private readonly agents: AgentManager;
+
 	constructor(projectPath: string) {
 		this.core = new Core(projectPath, { enableWatchers: true });
+		this.agents = new AgentManager(this.core);
 	}
 
 	private async resolveMilestoneInput(milestone: string): Promise<string> {
@@ -327,6 +331,23 @@ export class BacklogServer {
 					},
 					"/api/tasks/:id/complete": {
 						POST: async (req: Request & { params: { id: string } }) => await this.handleCompleteTask(req.params.id),
+					},
+					// AgentBoard coordination endpoints
+					"/api/agents": {
+						GET: async () => await this.handleListAgents(),
+						POST: async (req: Request) => await this.handleRegisterAgent(req),
+					},
+					"/api/tasks/:id/claim": {
+						POST: async (req: Request & { params: { id: string } }) => await this.handleClaimTask(req, req.params.id),
+					},
+					"/api/tasks/:id/release": {
+						POST: async (req: Request & { params: { id: string } }) => await this.handleReleaseTask(req, req.params.id),
+					},
+					"/api/tasks/:id/handoff": {
+						POST: async (req: Request & { params: { id: string } }) => await this.handleHandoffTask(req, req.params.id),
+					},
+					"/api/tasks/:id/review": {
+						POST: async (req: Request & { params: { id: string } }) => await this.handleReviewTask(req, req.params.id),
 					},
 					"/api/statuses": {
 						GET: async () => await this.handleGetStatuses(),
@@ -1011,6 +1032,101 @@ export class BacklogServer {
 		const config = await this.core.filesystem.loadConfig();
 		const statuses = config?.statuses || ["To Do", "In Progress", "Done"];
 		return Response.json(statuses);
+	}
+
+	// --- AgentBoard coordination handlers ---
+
+	private async handleListAgents(): Promise<Response> {
+		try {
+			const agents = await this.agents.listAgents();
+			return Response.json(agents);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : "Failed to list agents";
+			return Response.json({ error: message }, { status: 500 });
+		}
+	}
+
+	private async handleRegisterAgent(req: Request): Promise<Response> {
+		try {
+			const body = (await req.json()) as { id?: string; name?: string; role?: string; status?: "online" | "offline" };
+			if (!body.id) {
+				return Response.json({ error: "Agent id is required" }, { status: 400 });
+			}
+			const agent = await this.agents.registerAgent({
+				id: body.id,
+				name: body.name,
+				role: body.role,
+				status: body.status,
+			});
+			return Response.json(agent);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : "Failed to register agent";
+			return Response.json({ error: message }, { status: 400 });
+		}
+	}
+
+	private async handleClaimTask(req: Request, taskId: string): Promise<Response> {
+		try {
+			const body = (await req.json().catch(() => ({}))) as {
+				agent?: string;
+				leaseMinutes?: number;
+				force?: boolean;
+			};
+			if (!body.agent) {
+				return Response.json({ error: "agent is required" }, { status: 400 });
+			}
+			const task = await this.agents.claimTask(taskId, body.agent, {
+				leaseMinutes: body.leaseMinutes,
+				force: body.force,
+			});
+			this.broadcastTasksUpdated();
+			return Response.json(task);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : "Failed to claim task";
+			return Response.json({ error: message }, { status: 409 });
+		}
+	}
+
+	private async handleReleaseTask(req: Request, taskId: string): Promise<Response> {
+		try {
+			const body = (await req.json().catch(() => ({}))) as { agent?: string; force?: boolean };
+			const task = await this.agents.releaseTask(taskId, { agentId: body.agent, force: body.force });
+			this.broadcastTasksUpdated();
+			return Response.json(task);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : "Failed to release task";
+			return Response.json({ error: message }, { status: 409 });
+		}
+	}
+
+	private async handleHandoffTask(req: Request, taskId: string): Promise<Response> {
+		try {
+			const body = (await req.json().catch(() => ({}))) as { to?: string; from?: string; note?: string };
+			if (!body.to) {
+				return Response.json({ error: "to is required" }, { status: 400 });
+			}
+			const task = await this.agents.handoffTask(taskId, body.to, { note: body.note, fromAgentId: body.from });
+			this.broadcastTasksUpdated();
+			return Response.json(task);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : "Failed to hand off task";
+			return Response.json({ error: message }, { status: 400 });
+		}
+	}
+
+	private async handleReviewTask(req: Request, taskId: string): Promise<Response> {
+		try {
+			const body = (await req.json().catch(() => ({}))) as { decision?: "approve" | "reject"; note?: string };
+			if (body.decision !== "approve" && body.decision !== "reject") {
+				return Response.json({ error: "decision must be 'approve' or 'reject'" }, { status: 400 });
+			}
+			const task = await this.agents.reviewTask(taskId, body.decision, { note: body.note });
+			this.broadcastTasksUpdated();
+			return Response.json(task);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : "Failed to review task";
+			return Response.json({ error: message }, { status: 400 });
+		}
 	}
 
 	// Documentation handlers

@@ -78,6 +78,34 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onEdit, onDragStart, onDragEn
     }
   };
 
+  // AgentBoard: format the remaining time on a claim lease (e.g. "12m left", "expired").
+  const formatLease = (expiresAt?: string): string | null => {
+    if (!expiresAt) return null;
+    const expires = new Date(expiresAt).getTime();
+    if (Number.isNaN(expires)) return null;
+    const diffMin = Math.round((expires - Date.now()) / 60000);
+    if (diffMin <= 0) return 'lease expired';
+    if (diffMin < 60) return `${diffMin}m left`;
+    return `${Math.floor(diffMin / 60)}h left`;
+  };
+
+  const agentStatusBadge = (s?: string) => {
+    switch (s) {
+      case 'working': return { bg: 'bg-blue-100 dark:bg-blue-900/40', text: 'text-blue-700 dark:text-blue-300', label: 'Working' };
+      case 'blocked': return { bg: 'bg-red-100 dark:bg-red-900/40', text: 'text-red-700 dark:text-red-300', label: 'Blocked' };
+      case 'review': return { bg: 'bg-purple-100 dark:bg-purple-900/40', text: 'text-purple-700 dark:text-purple-300', label: 'Review' };
+      case 'done': return { bg: 'bg-green-100 dark:bg-green-900/40', text: 'text-green-700 dark:text-green-300', label: 'Done' };
+      case 'waiting': return { bg: 'bg-gray-100 dark:bg-gray-600', text: 'text-gray-600 dark:text-gray-300', label: 'Waiting' };
+      default: return null;
+    }
+  };
+
+  const lease = formatLease(task.claimExpiresAt);
+  const statusBadge = agentStatusBadge(task.agentStatus);
+  const hasAgentInfo = Boolean(
+    task.claimedBy || task.assignedAgent || task.agentStatus || task.handoffTo || task.requiresHumanReview,
+  );
+
   return (
     <div className="relative">
       {/* Branch tooltip when trying to drag cross-branch task */}
@@ -154,6 +182,49 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onEdit, onDragStart, onDragEn
             {task.labels.length > 3 && (
               <span className="inline-block px-1.5 py-0.5 text-[10px] text-gray-400 dark:text-gray-500">
                 +{task.labels.length - 3}
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* AgentBoard coordination badges */}
+        {hasAgentInfo && (
+          <div className="flex flex-wrap items-center gap-1 mt-2">
+            {task.requiresHumanReview && (
+              <span
+                className="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300"
+                title="Requires human review before Done"
+              >
+                ⚑ Review required
+              </span>
+            )}
+            {statusBadge && (
+              <span className={`px-1.5 py-0.5 text-[10px] font-semibold rounded ${statusBadge.bg} ${statusBadge.text}`}>
+                {statusBadge.label}
+              </span>
+            )}
+            {task.claimedBy && (
+              <span
+                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-medium rounded bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300"
+                title={lease ? `Claimed by ${task.claimedBy} — ${lease}` : `Claimed by ${task.claimedBy}`}
+              >
+                🔒 {task.claimedBy}{lease ? ` · ${lease}` : ''}
+              </span>
+            )}
+            {!task.claimedBy && task.assignedAgent && (
+              <span
+                className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-300"
+                title={`Assigned to ${task.assignedAgent}`}
+              >
+                @{task.assignedAgent}
+              </span>
+            )}
+            {task.handoffTo && (
+              <span
+                className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300"
+                title={`Hand off to ${task.handoffTo}`}
+              >
+                → {task.handoffTo}
               </span>
             )}
           </div>

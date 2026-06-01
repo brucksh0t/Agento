@@ -547,6 +547,20 @@ export const TaskDetailsModal: React.FC<Props> = ({
     }
   };
 
+  const handleReview = async (decision: "approve" | "reject") => {
+    if (!task) return;
+    const verb = decision === "approve" ? "Approve" : "Reject";
+    const note = window.prompt(`${verb} review for ${task.id}. Optional note:`, "");
+    if (note === null) return; // cancelled
+    try {
+      await apiClient.reviewTask(task.id, decision, note || undefined);
+      if (onSaved) await onSaved();
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
   const handleArchive = async () => {
     if (!task || !onArchive) return;
     if (!window.confirm(`Are you sure you want to archive "${task.title}"? This will move the task to the archive folder.`)) return;
@@ -578,6 +592,24 @@ export const TaskDetailsModal: React.FC<Props> = ({
       disableEscapeClose={mode === "edit" || mode === "create"}
       actions={
         <div className="flex items-center gap-2">
+		          {task?.requiresHumanReview && mode === "preview" && !isCreateMode && !isFromOtherBranch && (
+		            <>
+		              <button
+		                onClick={() => void handleReview("reject")}
+		                className="inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium text-white bg-red-600 dark:bg-red-700 hover:bg-red-700 dark:hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:ring-offset-2 dark:focus:ring-offset-gray-900 transition-colors duration-200"
+		                title="Reject review (keeps the task out of Done)"
+		              >
+		                Reject
+		              </button>
+		              <button
+		                onClick={() => void handleReview("approve")}
+		                className="inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium text-white bg-purple-600 dark:bg-purple-700 hover:bg-purple-700 dark:hover:bg-purple-800 focus:outline-none focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-400 focus:ring-offset-2 dark:focus:ring-offset-gray-900 transition-colors duration-200"
+		                title="Approve review (moves the task to Done)"
+		              >
+		                Approve review
+		              </button>
+		            </>
+		          )}
 		          {isDoneStatus && mode === "preview" && !isCreateMode && !isFromOtherBranch && (
 		            <button
 		              onClick={handleComplete}

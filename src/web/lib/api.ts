@@ -1,5 +1,6 @@
 import type { TaskStatistics } from "../../core/statistics.ts";
 import type {
+	Agent,
 	BacklogConfig,
 	Decision,
 	Document,
@@ -262,6 +263,40 @@ export class ApiClient {
 	async completeTask(id: string): Promise<void> {
 		await this.fetchWithRetry(`${API_BASE}/tasks/${id}/complete`, {
 			method: "POST",
+		});
+	}
+
+	// --- AgentBoard coordination ---
+
+	async fetchAgents(): Promise<Agent[]> {
+		return this.fetchJson<Agent[]>(`${API_BASE}/agents`);
+	}
+
+	async claimTask(id: string, agent: string, options?: { leaseMinutes?: number; force?: boolean }): Promise<Task> {
+		return this.fetchJson<Task>(`${API_BASE}/tasks/${id}/claim`, {
+			method: "POST",
+			body: JSON.stringify({ agent, ...options }),
+		});
+	}
+
+	async releaseTask(id: string, options?: { agent?: string; force?: boolean }): Promise<Task> {
+		return this.fetchJson<Task>(`${API_BASE}/tasks/${id}/release`, {
+			method: "POST",
+			body: JSON.stringify(options ?? {}),
+		});
+	}
+
+	async handoffTask(id: string, to: string, options?: { from?: string; note?: string }): Promise<Task> {
+		return this.fetchJson<Task>(`${API_BASE}/tasks/${id}/handoff`, {
+			method: "POST",
+			body: JSON.stringify({ to, ...options }),
+		});
+	}
+
+	async reviewTask(id: string, decision: "approve" | "reject", note?: string): Promise<Task> {
+		return this.fetchJson<Task>(`${API_BASE}/tasks/${id}/review`, {
+			method: "POST",
+			body: JSON.stringify({ decision, note }),
 		});
 	}
 
