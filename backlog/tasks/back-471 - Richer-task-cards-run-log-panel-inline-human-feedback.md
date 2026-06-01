@@ -4,7 +4,7 @@ title: 'Richer task cards: run-log panel + inline human feedback'
 status: In Progress
 assignee: []
 created_date: '2026-06-01 15:53'
-updated_date: '2026-06-01 22:52'
+updated_date: '2026-06-01 23:30'
 labels:
   - agentboard
   - roadmap
@@ -12,14 +12,14 @@ milestone: AgentBoard v1
 dependencies: []
 ordinal: 28000
 assigned_agent: claude
-agent_status: review
+claimed_by: claude
+claim_expires_at: '2026-06-02T00:00:54.790Z'
+agent_status: working
 requires_human_review: true
 artifact_paths:
   - src/web/components/AgentActivityPanel.tsx
   - src/web/components/TaskDetailsModal.tsx
-last_agent_note: >-
-  claude: Done: added AgentActivityPanel — renders the run-log timeline +
-  coordination badges in the task modal. Type-checks and builds.
+last_agent_note: delegated to claude
 ---
 
 ## Description

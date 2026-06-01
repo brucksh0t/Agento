@@ -15,7 +15,19 @@ import type {
 import { getTerminalStatus } from "../utils/terminal-status.ts";
 import { recommendAgents } from "./agent-recommender.ts";
 import type { Core } from "./backlog.ts";
-import { attachRecommendations, buildProjectSummary, type ProjectSummary } from "./project-lifecycle.ts";
+import { attachRecommendations, buildProjectSummary, isTaskDone, type ProjectSummary } from "./project-lifecycle.ts";
+
+/** Outcome of delegating a single task to an agent. */
+export interface DelegationResult {
+	task: Task;
+	agentId: string;
+	/** Fit score (0–100) when the agent was chosen by recommendation. */
+	score?: number;
+	/** Why the agent was chosen (when recommended). */
+	rationale?: string;
+	/** Whether the task was also claimed (locked) on the agent's behalf. */
+	claimed: boolean;
+}
 
 /** Error raised when an agent operation violates a coordination safeguard. */
 export class AgentCoordinationError extends Error {
@@ -335,6 +347,105 @@ export class AgentManager {
 		const task = await this.loadTaskOrThrow(taskId);
 		const agents = await this.listAgents();
 		return recommendAgents(task, agents, objective);
+	}
+
+	// --- Delegation ---------------------------------------------------------
+
+	/**
+	 * Delegate a task to an agent: either the one you name, or the recommended
+	 * best-fit. Records the assignment (and the reasoning) on the card, sets the
+	 * agent's workflow state to "waiting", and optionally claims it on their behalf
+	 * so it's locked and ready to be worked.
+	 */
+	async delegateTask(
+		taskId: string,
+		options: { agent?: string; objective?: RecommendObjective; claim?: boolean } = {},
+	): Promise<DelegationResult> {
+		const objective = options.objective ?? "balanced";
+		let chosen: string;
+		let score: number | undefined;
+		let rationale: string | undefined;
+
+		if (options.agent) {
+			chosen = normalizeAgentId(options.agent);
+		} else {
+			const recs = await this.recommendAgents(taskId, objective);
+			const top = recs[0];
+			if (!top) {
+				throw new AgentCoordinationError("No agents registered to delegate to. Register agents first.");
+			}
+			chosen = top.agent.id;
+			score = top.score;
+			rationale = top.rationale;
+		}
+
+		await this.ensureAgent(chosen, false);
+
+		const task = await this.core.withCreateLock(async () => {
+			const t = await this.loadTaskOrThrow(taskId);
+			t.assignedAgent = chosen;
+			if (t.agentStatus !== "working") t.agentStatus = "waiting";
+			t.lastAgentNote = score !== undefined ? `delegated to ${chosen} (fit ${score})` : `delegated to ${chosen}`;
+			await this.core.updateTask(t);
+			return (await this.core.getTask(taskId)) as Task;
+		});
+
+		const finalTask = options.claim ? await this.claimTask(taskId, chosen) : task;
+		return { task: finalTask, agentId: chosen, score, rationale, claimed: Boolean(options.claim) };
+	}
+
+	/**
+	 * Autonomously delegate every unclaimed task in a project to its best-fit agent.
+	 * This is the "set it loose" mode: assignments are made for the whole project so
+	 * each agent can pull its queue and start working.
+	 */
+	async delegateProject(
+		name: string,
+		options: { objective?: RecommendObjective; claim?: boolean } = {},
+	): Promise<DelegationResult[]> {
+		const objective = options.objective ?? "balanced";
+		const summary = await this.projectStatus(name, { objective });
+		const agents = await this.listAgents();
+		if (agents.length === 0) {
+			throw new AgentCoordinationError("No agents registered to delegate to. Register agents first.");
+		}
+		const allTasks = await this.core.filesystem.listTasks();
+		const byId = new Map(allTasks.map((t) => [t.id, t]));
+		// Load-balance: among agents within a small score margin of the best fit,
+		// prefer the one with the fewest assignments so far in this pass. Clear skill
+		// matches still win outright (big score gaps); only near-ties get spread.
+		const LOAD_MARGIN = 8;
+		const load = new Map<string, number>();
+		const results: DelegationResult[] = [];
+		for (const brief of summary.unclaimed) {
+			const task = byId.get(brief.id);
+			if (!task) continue;
+			const recs = recommendAgents(task, agents, objective);
+			const top = recs[0];
+			if (!top) continue;
+			const candidates = recs.filter((r) => top.score - r.score <= LOAD_MARGIN);
+			candidates.sort(
+				(a, b) =>
+					(load.get(a.agent.id) ?? 0) - (load.get(b.agent.id) ?? 0) ||
+					b.score - a.score ||
+					a.agent.id.localeCompare(b.agent.id),
+			);
+			const chosen = candidates[0] ?? top;
+			load.set(chosen.agent.id, (load.get(chosen.agent.id) ?? 0) + 1);
+			const result = await this.delegateTask(brief.id, { agent: chosen.agent.id, claim: options.claim });
+			result.score = chosen.score;
+			result.rationale = chosen.rationale;
+			results.push(result);
+		}
+		return results;
+	}
+
+	/** An agent's work queue: tasks assigned to or claimed by it that aren't done yet. */
+	async agentInbox(agentId: string): Promise<Task[]> {
+		const id = normalizeAgentId(agentId);
+		const tasks = await this.core.filesystem.listTasks();
+		const statuses = await this.projectStatuses();
+		return tasks.filter((t) => (t.assignedAgent === id || t.claimedBy === id) && !isTaskDone(t, statuses));
 	}
 
 	// --- Projects & lifecycle -----------------------------------------------

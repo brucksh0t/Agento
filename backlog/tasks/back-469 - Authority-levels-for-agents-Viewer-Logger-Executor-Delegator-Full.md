@@ -4,20 +4,18 @@ title: Authority levels for agents (Viewer/Logger/Executor/Delegator/Full)
 status: In Progress
 assignee: []
 created_date: '2026-06-01 15:53'
-updated_date: '2026-06-01 16:12'
+updated_date: '2026-06-01 23:30'
 labels:
   - agentboard
   - roadmap
 milestone: AgentBoard v1
 dependencies: []
 ordinal: 26000
-assigned_agent: codex
-claimed_by: codex
-claim_expires_at: '2026-06-01T16:23:36.197Z'
+assigned_agent: grok
+claimed_by: grok
+claim_expires_at: '2026-06-02T00:00:44.750Z'
 agent_status: working
-last_agent_note: >-
-  codex: scoping authority model: store level in agent frontmatter, gate in MCP
-  tool-wrapper
+last_agent_note: delegated to grok
 ---
 
 ## Description

@@ -278,6 +278,24 @@ progress, who's working now, what's **awaiting your review**, what's **blocked**
 **unclaimed/delegatable** tasks — each with a recommended agent. Phase priority surfaces
 what needs attention first: a project waiting on you (review) ranks above one merely building.
 
+### Delegation (confirm a pick, or go autonomous)
+
+| Action | Example |
+|--------|---------|
+| See the suggestion for a task (dry-run) | `backlog task delegate BACK-1` |
+| Confirm the suggested agent | `backlog task delegate BACK-1 --yes` |
+| Choose a specific agent | `backlog task delegate BACK-1 --agent codex` |
+| Assign and lock it | `backlog task delegate BACK-1 --agent codex --claim` |
+| Preview delegating a whole project | `backlog project delegate "My Project"` |
+| **Autonomously delegate a project** | `backlog project delegate "My Project" --auto --claim` |
+| See an agent's work queue | `backlog agent inbox codex` |
+
+`project delegate --auto` load-balances: clear skill matches win outright, but
+near-tied tasks spread across the crew instead of piling on one agent. Each agent
+then pulls its queue with `agent inbox`, claims/works the cards, logs progress, and
+hands off when another agent is a better fit — collaborating through the job notes
+on each card.
+
 ### MCP tools (agent-native)
 
 MCP-connected agents (Claude Code, Codex, Gemini CLI, …) coordinate through the
@@ -297,6 +315,9 @@ as MCP tools (start the server with `backlog mcp start`):
 | `agent_recommend` | suggest which agent should take a task, with rationale |
 | `project_list` | list projects with lifecycle phase + progress |
 | `project_status` | a project's phase, blockers, review queue, and delegatable work |
+| `task_delegate` | delegate a task to a named or recommended agent |
+| `project_delegate` | autonomously load-balance a project's unclaimed work across agents |
+| `agent_inbox` | an agent's work queue (its assigned/claimed, not-done tasks) |
 
 These call the same `AgentManager` as the CLI and REST API, so all three surfaces
 share one source of truth (the markdown files) and the same safeguards.

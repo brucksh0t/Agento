@@ -38,6 +38,9 @@ export type TaskLogArgs = { id: string; note: string; agent?: string; agentStatu
 export type TaskArtifactArgs = { id: string; paths: string[] };
 export type AgentRecommendArgs = { id: string; objective?: RecommendObjective };
 export type ProjectStatusArgs = { name: string; objective?: RecommendObjective };
+export type TaskDelegateArgs = { id: string; agent?: string; objective?: RecommendObjective; claim?: boolean };
+export type ProjectDelegateArgs = { name: string; objective?: RecommendObjective; claim?: boolean };
+export type AgentInboxArgs = { agent: string };
 
 function textResult(text: string): CallToolResult {
 	return { content: [{ type: "text", text }] };
@@ -125,6 +128,40 @@ export class AgentToolHandlers {
 		}
 		const lines = projects.map((p) => `  [${p.phase}] ${p.name} — ${p.doneCount}/${p.total} done (${p.progress}%)`);
 		return textResult(`Projects:\n${lines.join("\n")}`);
+	}
+
+	async delegateTask(args: TaskDelegateArgs): Promise<CallToolResult> {
+		const r = await guard(() =>
+			this.agents.delegateTask(args.id, { agent: args.agent, objective: args.objective, claim: args.claim }),
+		);
+		const how = r.score !== undefined ? ` (fit ${r.score})` : "";
+		return this.result(r.task, `Delegated ${r.task.id} to ${r.agentId}${how}${r.claimed ? " and claimed it" : ""}.`);
+	}
+
+	async delegateProject(args: ProjectDelegateArgs): Promise<CallToolResult> {
+		const results = await guard(() =>
+			this.agents.delegateProject(args.name, { objective: args.objective, claim: args.claim }),
+		);
+		if (results.length === 0) {
+			return textResult(`Nothing to delegate in "${args.name}" — no unclaimed tasks.`);
+		}
+		const lines = results.map((r) => {
+			const how = r.score !== undefined ? ` (fit ${r.score})` : "";
+			return `  ${r.task.id} → ${r.agentId}${how}${r.claimed ? " [claimed]" : ""}`;
+		});
+		return textResult(`Autonomously delegated ${results.length} task(s) in "${args.name}":\n${lines.join("\n")}`);
+	}
+
+	async agentInbox(args: AgentInboxArgs): Promise<CallToolResult> {
+		const tasks = await guard(() => this.agents.agentInbox(args.agent));
+		if (tasks.length === 0) {
+			return textResult(`${args.agent} has no open tasks.`);
+		}
+		const lines = tasks.map((t) => {
+			const lock = t.claimedBy === args.agent ? "claimed" : "assigned";
+			return `  ${t.id} — ${t.title} [${t.agentStatus ?? t.status}] (${lock})`;
+		});
+		return textResult(`${args.agent}'s queue:\n${lines.join("\n")}`);
 	}
 
 	async recommend(args: AgentRecommendArgs): Promise<CallToolResult> {

@@ -55,6 +55,38 @@ export const projectListSchema: JsonSchema = {
 	additionalProperties: false,
 };
 
+export const taskDelegateSchema: JsonSchema = {
+	type: "object",
+	properties: {
+		...taskId,
+		agent: { type: "string", maxLength: 50 },
+		objective: { type: "string", enum: [...RECOMMEND_OBJECTIVES] },
+		claim: { type: "boolean" },
+	},
+	required: ["id"],
+	additionalProperties: false,
+};
+
+export const projectDelegateSchema: JsonSchema = {
+	type: "object",
+	properties: {
+		name: { type: "string", minLength: 1, maxLength: 100 },
+		objective: { type: "string", enum: [...RECOMMEND_OBJECTIVES] },
+		claim: { type: "boolean" },
+	},
+	required: ["name"],
+	additionalProperties: false,
+};
+
+export const agentInboxSchema: JsonSchema = {
+	type: "object",
+	properties: {
+		agent: { type: "string", minLength: 1, maxLength: 50 },
+	},
+	required: ["agent"],
+	additionalProperties: false,
+};
+
 export const taskClaimSchema: JsonSchema = {
 	type: "object",
 	properties: {

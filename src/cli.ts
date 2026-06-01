@@ -2690,6 +2690,53 @@ taskCmd
 	});
 
 taskCmd
+	.command("delegate <taskId>")
+	.description("delegate a task: suggest the best agent, confirm with --yes (or pick with --agent)")
+	.option("--agent <agentId>", "delegate to this agent (an explicit choice = confirmed)")
+	.option("--optimize <objective>", "suggestion bias: balanced | quality | speed | cost", "balanced")
+	.option("--claim", "also claim/lock the task on the agent's behalf")
+	.option("-y, --yes", "confirm the suggested agent and assign")
+	.action(async (taskId: string, options: { agent?: string; optimize?: string; claim?: boolean; yes?: boolean }) => {
+		const cwd = await requireProjectRoot();
+		const core = new Core(cwd);
+		const agents = new AgentManager(core);
+		const objective = (options.optimize ?? "balanced").toLowerCase();
+		if (!(RECOMMEND_OBJECTIVES as readonly string[]).includes(objective)) {
+			console.error(`Invalid objective: ${options.optimize}. Valid: ${RECOMMEND_OBJECTIVES.join(", ")}`);
+			process.exitCode = 1;
+			return;
+		}
+		try {
+			// No explicit choice and not confirmed → show the suggestion (dry run).
+			if (!options.agent && !options.yes) {
+				const recs = await agents.recommendAgents(taskId, objective as RecommendObjective);
+				const top = recs[0];
+				if (!top) {
+					console.log("No agents registered. Register agents first: backlog agent register <id> --skills ...");
+					return;
+				}
+				console.log(`Suggested for ${taskId}: ${top.agent.id} (fit ${top.score}).`);
+				console.log(`  ${top.rationale}`);
+				console.log(
+					`\nConfirm: backlog task delegate ${taskId} --yes   ·   Choose another: --agent <id>   ·   Lock it: --claim`,
+				);
+				return;
+			}
+			const result = await agents.delegateTask(taskId, {
+				agent: options.agent,
+				objective: objective as RecommendObjective,
+				claim: options.claim,
+			});
+			const how = result.score !== undefined ? ` (fit ${result.score})` : "";
+			console.log(`Delegated ${result.task.id} to ${result.agentId}${how}${result.claimed ? " and claimed it" : ""}.`);
+			printAgentTaskSummary(result.task);
+		} catch (err) {
+			console.error(err instanceof Error ? err.message : String(err));
+			process.exitCode = 1;
+		}
+	});
+
+taskCmd
 	.command("archive <taskId>")
 	.description("archive a task")
 	.action(async (taskId: string) => {
@@ -3496,6 +3543,34 @@ agentCmd
 	});
 
 agentCmd
+	.command("inbox <agentId>")
+	.description("show an agent's work queue (tasks assigned to or claimed by it, not yet done)")
+	.option("--plain", "machine-readable output")
+	.action(async (agentId: string, options: { plain?: boolean }) => {
+		const cwd = await requireProjectRoot();
+		const core = new Core(cwd);
+		const agents = new AgentManager(core);
+		const tasks = await agents.agentInbox(agentId);
+		if (tasks.length === 0) {
+			console.log(`${agentId} has no open tasks.`);
+			return;
+		}
+		if (options.plain || shouldAutoPlain) {
+			for (const t of tasks) {
+				console.log(
+					[t.id, t.status, t.agentStatus ?? "-", t.claimedBy === agentId ? "claimed" : "assigned"].join("\t"),
+				);
+			}
+			return;
+		}
+		console.log(`${agentId}'s queue:`);
+		for (const t of tasks) {
+			const lock = t.claimedBy === agentId ? "🔒" : "○";
+			console.log(`  ${lock} ${t.id} — ${t.title} [${t.agentStatus ?? t.status}]`);
+		}
+	});
+
+agentCmd
 	.command("online <agentId>")
 	.description("mark an agent online (heartbeat)")
 	.action(async (agentId: string) => {
@@ -3576,6 +3651,50 @@ projectCmd
 			return;
 		}
 		console.log(formatProjectSummary(summary));
+	});
+
+projectCmd
+	.command("delegate <name>")
+	.description("delegate a whole project's unclaimed work to best-fit agents (autonomous with --auto)")
+	.option("--optimize <objective>", "suggestion bias: balanced | quality | speed | cost", "balanced")
+	.option("--auto", "actually assign (without this it's a dry-run preview)")
+	.option("--claim", "also claim/lock each task on the chosen agent's behalf")
+	.action(async (name: string, options: { optimize?: string; auto?: boolean; claim?: boolean }) => {
+		const cwd = await requireProjectRoot();
+		const core = new Core(cwd);
+		const agents = new AgentManager(core);
+		const objective = (options.optimize ?? "balanced").toLowerCase();
+		if (!(RECOMMEND_OBJECTIVES as readonly string[]).includes(objective)) {
+			console.error(`Invalid objective: ${options.optimize}. Valid: ${RECOMMEND_OBJECTIVES.join(", ")}`);
+			process.exitCode = 1;
+			return;
+		}
+		try {
+			const summary = await agents.projectStatus(name, { objective: objective as RecommendObjective });
+			if (summary.unclaimed.length === 0) {
+				console.log(`Nothing to delegate in "${name}" — no unclaimed tasks.`);
+				return;
+			}
+			if (!options.auto) {
+				console.log(`Delegation preview for "${name}" (run with --auto to assign):`);
+				for (const t of summary.unclaimed) {
+					console.log(`  ${t.id} — ${t.title}  →  ${t.recommendedAgent ?? "(no agents registered)"}`);
+				}
+				return;
+			}
+			const results = await agents.delegateProject(name, {
+				objective: objective as RecommendObjective,
+				claim: options.claim,
+			});
+			console.log(`Autonomously delegated ${results.length} task(s) in "${name}":`);
+			for (const r of results) {
+				const how = r.score !== undefined ? ` (fit ${r.score})` : "";
+				console.log(`  ${r.task.id} → ${r.agentId}${how}${r.claimed ? " [claimed]" : ""}`);
+			}
+		} catch (err) {
+			console.error(err instanceof Error ? err.message : String(err));
+			process.exitCode = 1;
+		}
 	});
 
 // Agents command group

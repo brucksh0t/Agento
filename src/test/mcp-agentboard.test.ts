@@ -105,6 +105,38 @@ describe("MCP AgentBoard coordination tools", () => {
 		expect(text.toLowerCase()).toContain("react");
 	});
 
+	it("delegates a task to the recommended agent and fills its inbox", async () => {
+		await call("agent_register", {
+			id: "grok",
+			skills: ["data", "scripts"],
+			codingScore: 3,
+			speedScore: 5,
+			status: "online",
+		});
+		await call("agent_register", { id: "claude", skills: ["react"], codingScore: 5, speedScore: 3, status: "online" });
+		await call("task_create", { title: "Bulk data scripts cleanup", labels: ["data"] });
+
+		const del = await call("task_delegate", { id: "TASK-2", objective: "balanced" });
+		const text = getText(del.content);
+		expect(text).toContain("Delegated TASK-2 to grok");
+
+		const task = await mcpServer.filesystem.loadTask("TASK-2");
+		expect(task?.assignedAgent).toBe("grok");
+
+		const inbox = await call("agent_inbox", { agent: "grok" });
+		expect(getText(inbox.content)).toContain("TASK-2");
+	});
+
+	it("autonomously delegates a whole project", async () => {
+		await call("agent_register", { id: "codex", skills: ["api"], codingScore: 4, speedScore: 4, status: "online" });
+		await call("task_create", { title: "Build endpoint A", milestone: "Proj" });
+		await call("task_create", { title: "Build endpoint B", milestone: "Proj" });
+		const res = await call("project_delegate", { name: "Proj", claim: true });
+		const text = getText(res.content);
+		expect(text).toContain("Autonomously delegated 2 task(s)");
+		expect(text).toContain("[claimed]");
+	});
+
 	it("reports project lifecycle status with delegatable work", async () => {
 		await call("agent_register", { id: "codex", skills: ["api"], codingScore: 4, speedScore: 4, status: "online" });
 		await call("task_create", { title: "API endpoint", milestone: "Demo Project" });

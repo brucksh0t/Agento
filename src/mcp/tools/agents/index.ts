@@ -2,25 +2,31 @@ import type { McpServer } from "../../server.ts";
 import type { McpToolHandler } from "../../types.ts";
 import { createSimpleValidatedTool } from "../../validation/tool-wrapper.ts";
 import {
+	type AgentInboxArgs,
 	type AgentRecommendArgs,
 	type AgentRegisterArgs,
 	AgentToolHandlers,
+	type ProjectDelegateArgs,
 	type ProjectStatusArgs,
 	type TaskArtifactArgs,
 	type TaskClaimArgs,
+	type TaskDelegateArgs,
 	type TaskHandoffArgs,
 	type TaskLogArgs,
 	type TaskReleaseArgs,
 	type TaskReviewArgs,
 } from "./handlers.ts";
 import {
+	agentInboxSchema,
 	agentListSchema,
 	agentRecommendSchema,
 	agentRegisterSchema,
+	projectDelegateSchema,
 	projectListSchema,
 	projectStatusSchema,
 	taskArtifactSchema,
 	taskClaimSchema,
+	taskDelegateSchema,
 	taskHandoffSchema,
 	taskLogSchema,
 	taskReleaseSchema,
@@ -129,6 +135,39 @@ export function registerAgentTools(server: McpServer): void {
 			},
 			projectStatusSchema,
 			async (input) => h.projectStatus(input as ProjectStatusArgs),
+		),
+		createSimpleValidatedTool(
+			{
+				name: "task_delegate",
+				description:
+					"Delegate a task to an agent — the one you name, or the recommended best-fit. Assigns it (and records why) and optionally claims it. The assigned agent then picks it up from its inbox and works it.",
+				inputSchema: taskDelegateSchema,
+				annotations: { title: "Delegate Task", destructiveHint: false },
+			},
+			taskDelegateSchema,
+			async (input) => h.delegateTask(input as TaskDelegateArgs),
+		),
+		createSimpleValidatedTool(
+			{
+				name: "project_delegate",
+				description:
+					"Autonomously delegate every unclaimed task in a project to its best-fit agent. The 'set it loose' mode: each agent then pulls its queue and works.",
+				inputSchema: projectDelegateSchema,
+				annotations: { title: "Delegate Project", destructiveHint: false },
+			},
+			projectDelegateSchema,
+			async (input) => h.delegateProject(input as ProjectDelegateArgs),
+		),
+		createSimpleValidatedTool(
+			{
+				name: "agent_inbox",
+				description:
+					"List an agent's work queue: tasks assigned to or claimed by it that aren't done. An agent calls this to find what to work on next.",
+				inputSchema: agentInboxSchema,
+				annotations: { title: "Agent Inbox", readOnlyHint: true, destructiveHint: false },
+			},
+			agentInboxSchema,
+			async (input) => h.agentInbox(input as AgentInboxArgs),
 		),
 		createSimpleValidatedTool(
 			{
