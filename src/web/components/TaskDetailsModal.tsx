@@ -5,6 +5,7 @@ import { apiClient } from "../lib/api";
 import { useTheme } from "../contexts/ThemeContext";
 import MDEditor from "@uiw/react-md-editor";
 import AcceptanceCriteriaEditor from "./AcceptanceCriteriaEditor";
+import AgentActivityPanel from './AgentActivityPanel';
 import MermaidMarkdown from './MermaidMarkdown';
 import ChipInput from "./ChipInput";
 import DependencyInput from "./DependencyInput";
@@ -714,6 +715,9 @@ export const TaskDetailsModal: React.FC<Props> = ({
               </div>
             )}
           </div>
+
+          {/* Agent Activity (run-log timeline + coordination state) */}
+          {mode === "preview" && !isCreateMode && task && <AgentActivityPanel task={task} />}
 
           {/* References */}
           <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
