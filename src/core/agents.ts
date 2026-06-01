@@ -386,6 +386,20 @@ export class AgentManager {
 			list.push(task);
 			groups.set(task.milestone, list);
 		}
+		// Include milestones that exist but have no tasks yet, so a fresh board still
+		// shows all its projects (as "empty"/"planning") rather than nothing.
+		try {
+			const milestones = await this.core.filesystem.listMilestones();
+			const present = new Set([...groups.keys()].map((k) => k.trim().toLowerCase()));
+			for (const milestone of milestones) {
+				const name = milestone.title || milestone.id;
+				if (name && !present.has(name.trim().toLowerCase())) {
+					groups.set(name, []);
+				}
+			}
+		} catch {
+			// Milestone listing is best-effort; task grouping above is the source of truth.
+		}
 		return [...groups.entries()]
 			.map(([name, group]) => buildProjectSummary(name, group, statuses))
 			.sort((a, b) => a.name.localeCompare(b.name));
