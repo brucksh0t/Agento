@@ -117,6 +117,40 @@ You are collaborating with other AI agents (Grok, Codex, Claude) on the shared *
   - Before starting: setup (e.g. git pull, install deps if needed in branch).
   - After: verify (run tests, lint), record proof-of-work.
 - **Token/turn awareness**: Track your usage if possible; keep prompts focused by reading only relevant files (use read_file, grep via tools).
+
+## Adapted from Symphony: Workpad as implementationNotes
+Use the task's implementationNotes as the single persistent "workpad" comment (like Symphony's Codex Workpad).
+Structure:
+## Agent Workpad
+<env stamp: host:path@sha>
+### Plan
+- [ ] ...
+### Acceptance Criteria (mirror task ACs + extra)
+### Validation
+- [ ] ...
+### Notes
+- progress with ts
+### Confusions
+- ...
+
+Reconcile/update in place before/after work. Use for handoff context.
+
+## Status / Flow for our board (adapted)
+- To Do -> claim or delegate (Grok assigns to Codex for exec).
+- In Progress -> execution (use workspace if created, follow WORKFLOW, produce proof).
+- (Add custom like Rework if needed via labels/status).
+- Use requires_human_review for Human Review equivalent.
+- For "Merging/land": use git skills, update finalSummary, close task.
+
+## Related skills (load via MCP resource backlog://skills/<name> or read .codex/skills/<name>/SKILL.md )
+- commit: well-formed commit from changes + history.
+- land: PR land flow.
+- pull/push: branch sync.
+- debug, etc.
+
+See .codex/skills/ (copied/adapted from Symphony) for full.
+
+This WORKFLOW + board makes Grok + Codex a powerful team on the common jobboard.
 - **MCP/CLI preference**: Use MCP tools (backlog__*) for agent-driven actions when available (claim, edit, log). Fall back to CLI. Always use --plain for AI-friendly output.
 - **Do not edit the board tool dev tasks** (in Agento\backlog) unless user says "work on the backlog tool".
 
