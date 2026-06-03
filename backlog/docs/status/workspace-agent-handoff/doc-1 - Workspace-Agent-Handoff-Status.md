@@ -34,14 +34,21 @@ C:\Users\usapr\Agento\dist\backlog.exe milestone list
 C:\Users\usapr\Agento\dist\backlog.exe task list --plain
 C:\Users\usapr\Agento\dist\backlog.exe task view TASK-1 --plain
 
-## Agent Rules
+## Agent Rules (updated for common Grok + Codex jobboard)
 
-1. Register online before work.
-2. Claim a card before editing repo files.
-3. Log progress and blockers on the card.
-4. Record changed files as artifacts when supported.
-5. Do not mark work complete without verification and human-review notes.
-6. Keep Agento developer tasks separate from this central board.
+1. Register online before work (update your agent-*.md last_seen/status).
+2. **Always read** `backlog/WORKFLOW.md` (new central contract, Symphony-inspired) + this doc-1 + the specific task before any claim or work.
+3. Claim a card (with lease via MCP `backlog__task_claim --agent <you>` or CLI) before editing repo files. Check `claimed_by` / `claim_expires_at` first.
+4. Log progress and blockers on the card (append-notes). Record **proof of work** (changed files, verification/CI/tests, summary, deliverable like PR/branch).
+5. Do not mark work complete or land without verification + human-review notes (`requires_human_review: true` for merges/prod).
+6. **Delegation & Handoff** (core for Grok/Codex collab):
+   - Manual: Grok (or user) assigns via edit `--assignee @codex` / `--assign-agent codex`. Codex claims/executes, hands back with rich notes.
+   - Autonomous (future): Coordinator (Grok) scans unclaimed (`task list -s "To Do"`), assigns by role/load/skills. Safeguards mandatory (no duplicates, leases, review gates, no auto-wake cloud agents).
+   - Handoff: Update `assigned_agent`, add context in notes, set review flag if needed. Reference this doc for status.
+7. Keep Agento developer tasks (the backlog tool source) separate from this central board unless user explicitly asks to develop the board itself.
+8. Use MCP tools (backlog__*) for agent-driven board actions when possible; CLI with --plain for output. Focus on execution + proof-of-work.
+
+See `backlog/WORKFLOW.md` for full borrowed spec (roles, delegation modes, proof_of_work template, safeguards, hooks, limits). This board is now explicitly the durable common jobboard for Grok + Codex + Claude coordination.
 
 ## Project Status
 

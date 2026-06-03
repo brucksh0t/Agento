@@ -2,9 +2,10 @@
 id: TASK-1
 title: Audit active Battle Lab folder and deployment target
 status: To Do
-assignee: []
+assignee:
+  - '@grok'
 created_date: '2026-06-01 23:32'
-updated_date: '2026-06-01 23:37'
+updated_date: '2026-06-01 23:42'
 labels:
   - battlelab
   - ghostwriter
@@ -16,6 +17,7 @@ references:
   - 'C:\Users\usapr\Documents\codex work\battlelabv2'
   - 'C:\Users\usapr\Documents\codex work\battle-lab-live'
   - 'C:\Users\usapr\Documents\codex work\battle-lab-live-2'
+  - 'C:\Users\usapr\Documents\claude work\battle-lab-live-2'
 documentation:
   - doc-1
 priority: high
@@ -32,11 +34,19 @@ Determine which Battle Lab folder is authoritative before any Ghostwriter fixes.
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Authoritative folder is identified with evidence from README/package/config files.
-- [ ] #2 Known live/deployed target is recorded or marked unknown with next verification step.
-- [ ] #3 No code changes are made during the audit unless explicitly required.
-- [ ] #4 Card final notes identify the next 3 implementation cards in correct order.
+- [x] #1 Authoritative folder is identified with evidence from README/package/config files.
+- [x] #2 Known live/deployed target is recorded or marked unknown with next verification step.
+- [x] #3 No code changes are made during the audit unless explicitly required.
+- [x] #4 Card final notes identify the next 3 implementation cards in correct order.
 <!-- AC:END -->
+
+
+
+
+
+
+
+
 
 ## Implementation Plan
 
@@ -52,7 +62,7 @@ Current status: Battle Lab has several local variants. We stopped before confirm
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Relevant files/docs were inspected before changes.
-- [ ] #2 Narrow verification command or explicit blocked reason is recorded.
-- [ ] #3 Final notes include changed files, commands run, and remaining risks.
+- [x] #1 Relevant files/docs were inspected before changes.
+- [x] #2 Narrow verification command or explicit blocked reason is recorded.
+- [x] #3 Final notes include changed files, commands run, and remaining risks.
 <!-- DOD:END -->
